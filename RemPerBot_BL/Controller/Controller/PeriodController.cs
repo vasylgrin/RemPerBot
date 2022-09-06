@@ -12,6 +12,47 @@ namespace MySuperUniversalBot_BL.Controller
         Dictionary<long, int> CycleDictionary = new();
         Dictionary<long, DateTime> DateOfLastMenstruationDictionary = new();
 
+        public bool AddPeriod(string inputText, 
+            AddPeriodEnum addPeriodEnum, 
+            long chatId, 
+            CancellationToken token, 
+            out Dictionary<long, AddPeriodEnum> AddPeriodDictionary, 
+            out Dictionary<long, NavigationEnum> NavigationDictionary, 
+            out Dictionary<long, string> InputTextDictionary, 
+            out bool isExistPeriodOut)
+        {
+            bool isOK = false;
+            bool isExistPerOut = false;
+
+            AddPeriodDictionary = new Dictionary<long, AddPeriodEnum>();
+            NavigationDictionary = new Dictionary<long, NavigationEnum>();
+            InputTextDictionary = new Dictionary<long, string>();
+
+            AddPeriodEnum addPeriodEnumOut = AddPeriodEnum.empty;
+            NavigationEnum navigationEnumOut = NavigationEnum.PeriodMenu;
+
+            Task task = Task.Run(async () =>
+            {
+                if (CheckForSaveReminder(chatId, inputText, addPeriodEnum, out addPeriodEnumOut, out navigationEnumOut, out isExistPerOut, token))
+                {
+                    //await DisplayCurrentPeriod(chatId, CallbackQueryCommands.savePeriod.ToString());
+                    //await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                    isOK = true;
+                }
+            });
+
+            task.Wait();
+
+            if(isOK)
+                SetDictionary(chatId, "", InputTextDictionary);
+
+            SetDictionary(chatId, addPeriodEnumOut, AddPeriodDictionary);
+            SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
+            isExistPeriodOut = isExistPerOut;
+            return isOK;
+        }
+
+
         /// <summary>
         /// Gets the data and stores the period.
         /// </summary>
@@ -20,15 +61,12 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="outputText">Output data.</param>
         /// <param name="button">Navigation button.</param>
         /// <param name="token">Token.</param>
-        public void AddPeriod(long chatId, string text, out string outputText, out byte button, CancellationToken token)
+        private bool CheckForSaveReminder(long chatId, string text, AddPeriodEnum addPeriodEnum,out AddPeriodEnum addPeriodEnumOut, out NavigationEnum navigationEnum, out bool isExistPeriodOut, CancellationToken token)
         {
-            byte but = 4;
-            const string addPeriod = "addPeriod ";
-            const string addPeriodCycle = "addPeriodCycle ";
-            const string addPeriodMenstruation = "addPeriodMenstruation ";
-            const string addPeriodDateOfLastMenstruationMenstruation = "addPeriodDateOfLastMenstruationMenstruation ";
-
-            string output = addPeriod;
+            NavigationEnum navEnum = NavigationEnum.PeriodMenu;
+            AddPeriodEnum addPerEnum = AddPeriodEnum.addPeriod;
+            bool isOk = false;
+            bool isExistPerOut = false;
 
             Task task = Task.Run(async () =>
             {
@@ -39,112 +77,119 @@ namespace MySuperUniversalBot_BL.Controller
                 {
                     if (period.ChatId == chatId)
                     {
-                        output = "";
+                        addPerEnum = AddPeriodEnum.empty;
                         await PrintMessage("У тебе вже є створений цикл, якщо ти хочеш щось змінити то просто видали його...", period.ChatId);
+                        isExistPerOut = true;
                         return;
                     }
                 }
 
-                but = 5;
-                string[] word = text.Trim().Split(new char[] { ' ' });
-                word[0] += " ";
+                navEnum = NavigationEnum.addPeriod;
                 
-                if (word[0]==addPeriod)
+                if (addPeriodEnum == AddPeriodEnum.addPeriod)
                 {
-                    output = addPeriodMenstruation;
+                    addPerEnum = AddPeriodEnum.addPeriodMenstruation;
                     await PrintKeyboard("Введи тривалість менструації\nПриклад: 7", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
                     return;
                 }
-                else if (word[0] == addPeriodMenstruation)
+                else if (addPeriodEnum == AddPeriodEnum.addPeriodMenstruation)
                 {
-                    output = addPeriodMenstruation;
-                    text = text.Replace(addPeriodMenstruation,"");
+                    addPerEnum = AddPeriodEnum.addPeriodMenstruation;
+
+                    text = text.Replace(AddPeriodEnum.addPeriodMenstruation.ToString(), "");
+                    
                     if (!int.TryParse(text, out int durationMenstruatin))
                     {
-                        await PrintMessage("Щось не так з тривалістю менструації...", chatId);
+                        await PrintMessage("Щось не так з тривалістю менструації...\nСпробуй ще раз...", chatId);
                         return;
-                    }
-                    
-                    if (durationMenstruatin <= 0)
+                    }                
+                    else if (durationMenstruatin <= 0)
                     {
-                        await PrintMessage("Тривалість ментсруації не може бути 0...", chatId);
+                        await PrintMessage("Тривалість ментсруації не може бути 0...\nСпробуй ще раз...", chatId);
                         return;
                     }
                     else if (durationMenstruatin < 4 || durationMenstruatin > 10)
                     {
-                        await PrintMessage("Тривалість ментсруації не може бути менше 4, та быльше 10 днів...", chatId);
+                        await PrintMessage("Тривалість ментсруації не може бути менше 4, та быльше 10 днів...\nСпробуй ще раз...", chatId);
                         return;
                     }
 
                     SetDictionary(chatId, durationMenstruatin, MenstruationDictionary);
-
                     await PrintKeyboard("Введи тривалість циклу\nПриклад: 30", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
-                    output = addPeriodCycle;
+                    addPerEnum = AddPeriodEnum.addPeriodCycle;
                 }
-                else if (word[0] == addPeriodCycle)
+                else if (addPeriodEnum == AddPeriodEnum.addPeriodCycle)
                 {
-                    output = addPeriodCycle;
-                    text = text.Replace(addPeriodCycle, "");
+                    addPerEnum = AddPeriodEnum.addPeriodCycle;
+                    
+                    text = text.Replace(AddPeriodEnum.addPeriodCycle.ToString(), "");
+                    
                     if (!int.TryParse(text, out int durationCycle))
                     {
-                        await PrintMessage("Щось не так з тривалістю циклу...", chatId);
+                        await PrintMessage("Щось не так з тривалістю циклу...\nСпробуй ще раз...", chatId);
                         return;
                     }
 
                     if (durationCycle <= 0)
                     {
-                        await PrintMessage("Тривалість циклу не може бути 0...", chatId);
+                        await PrintMessage("Тривалість циклу не може бути 0...\nСпробуй ще раз...", chatId);
                         return;
                     }
                     else if (durationCycle < 15 || durationCycle > 40)
                     {
-                        await PrintMessage("Тривалість циклу не може бути менше 15, та більше 40 днів...", chatId);
+                        await PrintMessage("Тривалість циклу не може бути менше 15, та більше 40 днів...\nСпробуй ще раз...", chatId);
                         return;
                     }
 
                     SetDictionary(chatId, durationCycle, CycleDictionary);
 
-                    await PrintKeyboard("Введи дату останьої менструації\nПриклад: 17.09.2021", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
-                    output = addPeriodDateOfLastMenstruationMenstruation;
+                    await PrintKeyboard($"Введи дату останьої менструації\nПриклад: {DateTime.Today.AddDays(3).AddMonths(-1)}", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
+                    addPerEnum = AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation;
                 }
-                else if (word[0] == addPeriodDateOfLastMenstruationMenstruation)
+                else if (addPeriodEnum == AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation)
                 {
-                    output = addPeriodDateOfLastMenstruationMenstruation;
-                    text = text.Replace(addPeriodDateOfLastMenstruationMenstruation, "");
+                    addPerEnum = AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation;
+                    text = text.Replace(AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation.ToString(), "");
+                    
                     if (!DateTime.TryParse(text, out DateTime dateOfLastMenstruation))
                     {
-                        await PrintMessage("Щось не так з датою останьої менструації...", chatId);
+                        await PrintMessage("Щось не так з датою останьої менструації...\nСпробуй ще раз...", chatId);
                         return;
                     }
 
                     if (dateOfLastMenstruation == DateTime.MinValue)
                     {
-                        await PrintMessage("Дата останьої менструації не може бути 0...", chatId);
+                        await PrintMessage("Дата останьої менструації не може бути 0...\nСпробуй ще раз...", chatId);
                         return;
                     }
                     else if (dateOfLastMenstruation > DateTime.Today)
                     {
-                        await PrintMessage("Дата останьої менструації не може бути з майбутнього...", chatId);
+                        await PrintMessage("Дата останьої менструації не може бути з майбутнього...\nСпробуй ще раз...", chatId);
                         return;
                     }
                     else if (dateOfLastMenstruation < DateTime.Today.AddDays(-CycleDictionary[chatId]))
                     {
-                        await PrintMessage($"Дата останьої менструації не може бути більше {CycleDictionary[chatId]} днів тому...", chatId);
+                        await PrintMessage($"Дата останьої менструації не може бути більше {CycleDictionary[chatId]} днів тому...\nСпробуй ще раз...", chatId);
                         return;
                     }
 
                     SetDictionary(chatId, dateOfLastMenstruation, DateOfLastMenstruationDictionary);
 
-                    await PrintInline($"Ваші налаштування:\nТривалість менструації: {MenstruationDictionary[chatId]} д.\nТривалість циклу: {CycleDictionary[chatId]} д.\nДата останьої менструації: {DateOfLastMenstruationDictionary[chatId]}", chatId, SetupInLine(CallbackQueryCommands.Зберегти.ToString(), CallbackQueryCommands.savePeriod.ToString()), token);
-                    await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), token);                    
+                    isOk = true;
                 }
             });
 
             task.Wait();
 
-            button = but;
-            outputText = output;
-        }   
+            addPeriodEnumOut = addPerEnum;
+            navigationEnum = navEnum;
+            isExistPeriodOut = isExistPerOut;
+            return isOk;
+        }
+
+
+        public async Task DisplayCurrentPeriod(long chatId, string callbackName) => await PrintInline($"Ваші налаштування:\nТривалість менструації: {MenstruationDictionary[chatId]} д.\nТривалість циклу: {CycleDictionary[chatId]} д.\nДата останьої менструації: {DateOfLastMenstruationDictionary[chatId]}", chatId, SetupInLine(CallbackQueryCommands.Зберегти.ToString(), callbackName));
+
 
         /// <summary>
         /// Checks for null and saves the period.
@@ -153,17 +198,28 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="durationMenstruation">Duratiom menstruation.</param>
         /// <param name="durationСycle">Duration cycle.</param>
         /// <param name="dateOfLastMenstruation">Date of last menstruation.</param>
-        public async void SavePeriodAsync(long chatId)
+        public async Task<bool> SavePeriodAsync(long chatId)
         {
-            if (new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).SaveDB(new Period(chatId, MenstruationDictionary[chatId], CycleDictionary[chatId], DateOfLastMenstruationDictionary[chatId], DateOfLastMenstruationDictionary[chatId].AddDays(CycleDictionary[chatId]))))
+            int menstruationDictionaryValue = 0;
+            int cycleDictionaryValue = 0;
+            DateTime dateOfLastMenstruationDicionaryValue = DateTime.MinValue;
+            
+            if (GetDictionary(chatId, MenstruationDictionary, out menstruationDictionaryValue) 
+                && GetDictionary(chatId, CycleDictionary, out cycleDictionaryValue) 
+                && GetDictionary(chatId, DateOfLastMenstruationDictionary, out dateOfLastMenstruationDicionaryValue))
             {
-                await PrintMessage($"Налаштування успішно збережено.\nТвій наступний цикл {DateOfLastMenstruationDictionary[chatId].AddDays(CycleDictionary[chatId])}", chatId);           
-                MenstruationDictionary.Remove(chatId);
-                CycleDictionary.Remove(chatId);
-                DateOfLastMenstruationDictionary.Remove(chatId);
-            }
-            else
-                await PrintMessage("Налаштування не збережено.", chatId);
+                if (new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).SaveDB(new Period(chatId, menstruationDictionaryValue, cycleDictionaryValue, dateOfLastMenstruationDicionaryValue, dateOfLastMenstruationDicionaryValue.AddDays(cycleDictionaryValue))))
+                {
+                    await PrintMessage($"Налаштування успішно збережено.\nТвій наступний цикл {DateOfLastMenstruationDictionary[chatId].AddDays(CycleDictionary[chatId])}", chatId);
+                    MenstruationDictionary.Remove(chatId);
+                    CycleDictionary.Remove(chatId);
+                    DateOfLastMenstruationDictionary.Remove(chatId);
+                    return true;
+                }
+                else
+                    await PrintMessage("Налаштування не збережено.", chatId);
+            }     
+            return false;
         }
 
         /// <summary>
@@ -248,30 +304,45 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="chatId"></param>
         public async void UpdatePeriodAsync(long chatId)
         {
+            bool isOK = false;
             new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB(out List<Period> periods);
             periods = periods.Where(p => p.ChatId == chatId).ToList();
 
             if (periods.Count != 0)
             {
-                if (periods.First().DateOfNextMenstruation.AddDays(-3) == DateTime.Today)
+                if (periods.First().DurationMenstruationVariable != -1)
                 {
-                    periods.Where(p => p.ChatId == chatId).ToList().ForEach(async p =>
-                    {
-                        if (p.DurationMenstruationVariable != -1)
-                        {
-                            await PrintMessage("Цикл вже розпочався.", p.ChatId);
-                            return;
-                        }
-                        p.DateOfNextMenstruation = DateTime.Today;
-                        p.isNotify = false;
-                        p.DurationMenstruationVariable = p.DurationMenstruation;
-                        p.DateOfLastMenstruation = DateTime.Today;
-                        p.DateOfNextMenstruation = DateTime.Today.AddDays(p.DurationСycle);
-                        new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
-                    });
+                    await PrintMessage("Твій цикл вже розпочався.", chatId);
+                    return;
                 }
-                else
-                    await PrintMessage("Ментсруація не може початись раніше ніж за 7 днів до планової менстрації.", chatId);
+
+                for (int i = 0; i < 8; i++)
+                {
+                    if (periods.First().DateOfNextMenstruation.AddDays(-i) == DateTime.Today)
+                    {
+                        periods.Where(p => p.ChatId == chatId).ToList().ForEach(async p =>
+                        {
+                            if (p.DurationMenstruationVariable != -1)
+                            {
+                                await PrintMessage("Цикл вже розпочався.", p.ChatId);
+                                return;
+                            }
+                            p.DateOfNextMenstruation = DateTime.Today;
+                            p.isNotify = false;
+                            p.DurationMenstruationVariable = p.DurationMenstruation;
+                            p.DateOfLastMenstruation = DateTime.Today;
+                            p.DateOfNextMenstruation = DateTime.Today.AddDays(p.DurationСycle);
+                            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
+                            isOK = true;
+                        });
+                    }
+                }
+
+                if (!isOK) 
+                {
+                    await PrintMessage("Менструація не може початись раніше ніж за 7 днів до планової менструації.", chatId);
+                }
+
             }
             else
                 await PrintMessage("Цикл не знайдено,саме час його створити.", chatId);
@@ -337,7 +408,7 @@ namespace MySuperUniversalBot_BL.Controller
             {
                 period.ForEach(async p =>
                 {
-                    await PrintInline($"{p.DurationMenstruation} {p.DurationСycle} {p.DateOfLastMenstruation}", chatId, SetupInLine(CallbackQueryCommands.Видалити.ToString(), CallbackQueryCommands.deletePeriod.ToString() + p.Id), cancellationToken);
+                    await PrintInline($"{p.DurationMenstruation} {p.DurationСycle} {p.DateOfLastMenstruation}", chatId, SetupInLine(CallbackQueryCommands.Видалити.ToString(), CallbackQueryCommands.deletePeriod.ToString() + p.Id));
                 });
             }
             else

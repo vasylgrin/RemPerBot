@@ -41,8 +41,14 @@ namespace MySuperUniversalBot_BL.Controller
             Видалити,
             saveReminder,
             savePeriod,
-            saveNotifyTheUser,
-            Зберегти
+            Зберегти,
+            sendInviteNotifyTheUser,
+            Запросити,
+            confirmInvite,
+            Підтвердити,
+            tutorialReminder,
+            tutorialPeriod,
+            tutorialNotifyTheUser,
         }
 
         /// <summary>
@@ -77,6 +83,54 @@ namespace MySuperUniversalBot_BL.Controller
             Користувачі,
         }
 
+        /// <summary>
+        /// Enumeration for app navigation.
+        /// </summary>
+        public enum NavigationEnum
+        {
+            ReminderMenu = 1,
+            AddReminder,
+            StartPeriodMenu,
+            PeriodMenu,
+            addPeriod,
+            addNotifyTheUser,
+        }
+
+        /// <summary>
+        /// Enumeration to add a reminder.
+        /// </summary>
+        public enum AddReminderEnum
+        {
+            empty,
+            addReminder,
+            addReminderTopic,
+            addReminderDateTime
+        }
+
+        /// <summary>
+        /// Enumeration to add a period.
+        /// </summary>
+        public enum AddPeriodEnum
+        {
+            empty,
+            addPeriod,
+            addPeriodCycle,
+            addPeriodMenstruation,
+            addPeriodDateOfLastMenstruationMenstruation
+        }
+
+        /// <summary>
+        /// Enumeration to add a notifyTheUser.
+        /// </summary>
+        public enum AddNotifyTheUserEnum
+        {
+            empty,
+            addNotifyTheUser,
+            addNotifyTheUserChatId,
+            addNotifyTheUserName
+        }
+
+
         #endregion
 
         /// <summary>
@@ -84,7 +138,7 @@ namespace MySuperUniversalBot_BL.Controller
         /// </summary>
         /// <param name="chatID">Chat id.</param>
         /// <param name="_cancellationToken">Token.</param>
-        public void vBotControllerBase(long chatID,CancellationToken _cancellationToken)
+        public void vBotControllerBase(long chatID, CancellationToken _cancellationToken)
         {
             chatId = chatID;
             cancellationToken = _cancellationToken;
@@ -109,6 +163,75 @@ namespace MySuperUniversalBot_BL.Controller
             }
         }
 
+        #region Overload GetDictionary
+
+        /// <summary>
+        /// Gets the dictionary element if it exists.
+        /// </summary>
+        /// <typeparam name="G">The type of data we will receive.</typeparam>
+        /// <param name="chatId">Chat id.</param>
+        /// <param name="dictionary"></param>
+        /// <returns></returns>
+        public G GetDictionary<G>(long chatId, Dictionary<long, G> dictionary)
+        {
+            if (dictionary.ContainsKey(chatId))
+            {
+                return dictionary[chatId];
+            }
+            else
+            {
+                return default;
+            }
+        }
+
+        /// <summary>
+        /// Gets the dictionary element if it exists.
+        /// </summary>
+        /// <typeparam name="G">The type of data we will receive.</typeparam>
+        /// <param name="chatId">Chat id.</param>
+        /// <param name="dictionary">Dictionary.</param>
+        /// <param name="res">Result.</param>
+        /// <returns></returns>
+        public bool GetDictionary<G>(long chatId, Dictionary<long, G> dictionary, out G res)
+        {
+            bool isOk = false;
+            if (dictionary.ContainsKey(chatId))
+            {
+                res = dictionary[chatId];
+                isOk = true;
+            }
+            else
+            {
+                res = default;
+            }
+            return isOk;
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Sets the initial value for multiple dictionaries.
+        /// </summary>
+        /// <param name="chatId">Chat id.</param>
+        /// <param name="firstDictionary">First Dictionary.</param>
+        /// <param name="secondDictionary">Second Dictionary.</param>
+        /// <param name="thirdDictionary">Third Dictionary.</param>
+        protected void SetsTheInitialValue(long chatId, Dictionary<long, string> firstDictionary, Dictionary<long, string> secondDictionary, Dictionary<long, bool> thirdDictionary)
+        {
+            if (!firstDictionary.ContainsKey(chatId))
+            {
+                firstDictionary[chatId] = "";
+            }
+            if (!secondDictionary.ContainsKey(chatId))
+            {
+                secondDictionary[chatId] = "";
+            }
+            if (!thirdDictionary.ContainsKey(chatId))
+            {
+                thirdDictionary[chatId] = true;
+            }
+        }
+
         /// <summary>
         /// User keyboard output.
         /// </summary>
@@ -120,27 +243,13 @@ namespace MySuperUniversalBot_BL.Controller
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
             Task.Delay(500).Wait();
-            Message sentMessage = await botClient.SendTextMessageAsync(
+            
+            await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
                 replyMarkup: replyKeyboardMarkup,
                 cancellationToken: cancellationToken);
         }
-
-        /// <summary>
-        /// Removes the keyboard from the user.
-        /// </summary>
-        /// <param name="messageText">Message text.</param>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="cancellationToken">Token.</param>
-        public async void RemoveKeyboard(string messageText, long? chatId, CancellationToken cancellationToken)
-        {
-            Message sentMessage = await botClient.SendTextMessageAsync(
-                chatId: chatId,
-                text: messageText,
-                replyMarkup: new ReplyKeyboardRemove(),
-                cancellationToken: cancellationToken);
-        }      
 
         /// <summary>
         /// Вивід inline кнопок.
@@ -149,7 +258,7 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="chatId">Id чату.</param>
         /// <param name="inlineKeyboardMarkup">Вид inline кнопок.</param>
         /// <param name="cancellationToken"></param>
-        public async Task PrintInline(string messageText, long? chatId, InlineKeyboardMarkup inlineKeyboardMarkup, CancellationToken cancellationToken)
+        public async Task PrintInline(string messageText, long? chatId, InlineKeyboardMarkup inlineKeyboardMarkup)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
             Task.Delay(500).Wait();
@@ -191,7 +300,7 @@ namespace MySuperUniversalBot_BL.Controller
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing);
             Task.Delay(500).Wait();
 
-            Message sentMessage = await botClient.SendTextMessageAsync(
+            await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
                 cancellationToken: cancellationToken);
@@ -204,15 +313,15 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="messageText">Message.</param>
         /// <param name="chatId">Id chat/</param>
         /// <param name="token">Token.</param>
-        public async void PrintMessage(string messageText, long chatId, int typing, CancellationToken token)
+        public async Task PrintMessage(string messageText, long chatId, int typing)
         {
-            await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, token);
+            await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
             Task.Delay(typing).Wait();
 
             Message sentMessage = await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
-                cancellationToken: token);
+                cancellationToken: cancellationToken);
         }
 
         #endregion

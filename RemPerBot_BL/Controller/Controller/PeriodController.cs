@@ -1,57 +1,39 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MySuperUniversalBot_BL.Controller.ControllerBase;
 using MySuperUniversalBot_BL.Models;
+using RemBerBot_BL.Controller.Controller;
 using System.Data;
+using System.Runtime.ConstrainedExecution;
 using Telegram.Bot.Types;
 
 namespace MySuperUniversalBot_BL.Controller
 {
     public class PeriodController : BotControllerBase
     {
+        #region Variable
+
         Dictionary<long, int> MenstruationDictionary = new();
         Dictionary<long, int> CycleDictionary = new();
         Dictionary<long, DateTime> DateOfLastMenstruationDictionary = new();
+        Dictionary<long, int> ClearDictionaryUser = new();
+        ObjectControllerBase objectControllerBase = new();
 
-        public bool AddPeriod(string inputText, 
-            AddPeriodEnum addPeriodEnum, 
-            long chatId, 
-            CancellationToken token, 
-            out Dictionary<long, AddPeriodEnum> AddPeriodDictionary, 
-            out Dictionary<long, NavigationEnum> NavigationDictionary, 
-            out Dictionary<long, string> InputTextDictionary, 
-            out bool isExistPeriodOut)
+        #endregion
+
+        public bool Add(string inputText, AddPeriodEnum addPeriodEnum, long chatId, CancellationToken token, out Dictionary<long, AddPeriodEnum> AddPeriodDictionary, out Dictionary<long, NavigationEnum> NavigationDictionary, out bool isExistPeriodOut)
         {
-            bool isOK = false;
             bool isExistPerOut = false;
 
             AddPeriodDictionary = new Dictionary<long, AddPeriodEnum>();
             NavigationDictionary = new Dictionary<long, NavigationEnum>();
-            InputTextDictionary = new Dictionary<long, string>();
 
-            AddPeriodEnum addPeriodEnumOut = AddPeriodEnum.empty;
-            NavigationEnum navigationEnumOut = NavigationEnum.PeriodMenu;
+            bool isOK = CheckForSavePeriod(chatId, inputText, addPeriodEnum, out AddPeriodEnum addPeriodEnumOut, out NavigationEnum navigationEnumOut, out isExistPerOut, token);
 
-            Task task = Task.Run(async () =>
-            {
-                if (CheckForSaveReminder(chatId, inputText, addPeriodEnum, out addPeriodEnumOut, out navigationEnumOut, out isExistPerOut, token))
-                {
-                    //await DisplayCurrentPeriod(chatId, CallbackQueryCommands.savePeriod.ToString());
-                    //await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                    isOK = true;
-                }
-            });
-
-            task.Wait();
-
-            if(isOK)
-                SetDictionary(chatId, "", InputTextDictionary);
-
-            SetDictionary(chatId, addPeriodEnumOut, AddPeriodDictionary);
-            SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
+            objectControllerBase.SetDictionary(chatId, addPeriodEnumOut, AddPeriodDictionary);
+            objectControllerBase.SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
             isExistPeriodOut = isExistPerOut;
             return isOK;
         }
-
 
         /// <summary>
         /// Gets the data and stores the period.
@@ -61,31 +43,33 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="outputText">Output data.</param>
         /// <param name="button">Navigation button.</param>
         /// <param name="token">Token.</param>
-        private bool CheckForSaveReminder(long chatId, string text, AddPeriodEnum addPeriodEnum,out AddPeriodEnum addPeriodEnumOut, out NavigationEnum navigationEnum, out bool isExistPeriodOut, CancellationToken token)
+        private bool CheckForSavePeriod(long chatId, string text, AddPeriodEnum addPeriodEnum,out AddPeriodEnum addPeriodEnumOut, out NavigationEnum navigationEnum, out bool isExistPeriodOut, CancellationToken token)
         {
             NavigationEnum navEnum = NavigationEnum.PeriodMenu;
             AddPeriodEnum addPerEnum = AddPeriodEnum.addPeriod;
             bool isOk = false;
             bool isExistPerOut = false;
 
+            var periods = new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load();
+
+
             Task task = Task.Run(async () =>
             {
-                new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB(out List<Period> periods);
-
-                // If the period has already been created, this will be done.
+                // If the period has already been created, this will be done
                 foreach (var period in periods)
                 {
-                    if (period.ChatId == chatId)
+                    if(period.ChatId == chatId)
                     {
                         addPerEnum = AddPeriodEnum.empty;
-                        await PrintMessage("У тебе вже є створений цикл, якщо ти хочеш щось змінити то просто видали його...", period.ChatId);
+                        await PrintInline("У тебе вже є створений цикл, якщо ти хочеш щось змінити то просто видали його...", period.ChatId, SetupInLine("Видалити", CallbackQueryCommands.deletePeriod.ToString() + " " + period.Id));
                         isExistPerOut = true;
+                        isOk = true;
                         return;
                     }
                 }
 
                 navEnum = NavigationEnum.addPeriod;
-                
+
                 if (addPeriodEnum == AddPeriodEnum.addPeriod)
                 {
                     addPerEnum = AddPeriodEnum.addPeriodMenstruation;
@@ -114,7 +98,7 @@ namespace MySuperUniversalBot_BL.Controller
                         return;
                     }
 
-                    SetDictionary(chatId, durationMenstruatin, MenstruationDictionary);
+                    objectControllerBase.SetDictionary(chatId, durationMenstruatin, MenstruationDictionary);
                     await PrintKeyboard("Введи тривалість циклу\nПриклад: 30", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
                     addPerEnum = AddPeriodEnum.addPeriodCycle;
                 }
@@ -141,9 +125,9 @@ namespace MySuperUniversalBot_BL.Controller
                         return;
                     }
 
-                    SetDictionary(chatId, durationCycle, CycleDictionary);
+                    objectControllerBase.SetDictionary(chatId, durationCycle, CycleDictionary);
 
-                    await PrintKeyboard($"Введи дату останьої менструації\nПриклад: {DateTime.Today.AddDays(3).AddMonths(-1)}", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
+                    await PrintKeyboard($"Введи дату останьої менструації\nПриклад: {DateTime.Today.AddDays(3).AddMonths(-1).ToShortDateString()}", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
                     addPerEnum = AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation;
                 }
                 else if (addPeriodEnum == AddPeriodEnum.addPeriodDateOfLastMenstruationMenstruation)
@@ -173,7 +157,7 @@ namespace MySuperUniversalBot_BL.Controller
                         return;
                     }
 
-                    SetDictionary(chatId, dateOfLastMenstruation, DateOfLastMenstruationDictionary);
+                    objectControllerBase.SetDictionary(chatId, dateOfLastMenstruation, DateOfLastMenstruationDictionary);
 
                     isOk = true;
                 }
@@ -188,9 +172,14 @@ namespace MySuperUniversalBot_BL.Controller
         }
 
 
-        public async Task DisplayCurrentPeriod(long chatId, string callbackName) => await PrintInline($"Ваші налаштування:\nТривалість менструації: {MenstruationDictionary[chatId]} д.\nТривалість циклу: {CycleDictionary[chatId]} д.\nДата останьої менструації: {DateOfLastMenstruationDictionary[chatId]}", chatId, SetupInLine(CallbackQueryCommands.Зберегти.ToString(), callbackName));
-
-
+        public async Task DisplayCurrentPeriod(long chatId, string callbackName)
+        {
+            MenstruationDictionary.TryGetValue(chatId, out int menstruationDictionaryValue);
+            CycleDictionary.TryGetValue(chatId, out int cycleDictionaryValue);
+            DateOfLastMenstruationDictionary.TryGetValue(chatId, out DateTime dateOfLastMenstruationDictionaryValue);
+            await PrintInline($"Ваші налаштування:\nТривалість менструації: {menstruationDictionaryValue} д.\nТривалість циклу: {cycleDictionaryValue} д.\nДата останьої менструації: {dateOfLastMenstruationDictionaryValue}", chatId, SetupInLine(CallbackQueryCommands.Зберегти.ToString(), callbackName));
+        }
+        
         /// <summary>
         /// Checks for null and saves the period.
         /// </summary>
@@ -198,28 +187,33 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="durationMenstruation">Duratiom menstruation.</param>
         /// <param name="durationСycle">Duration cycle.</param>
         /// <param name="dateOfLastMenstruation">Date of last menstruation.</param>
-        public async Task<bool> SavePeriodAsync(long chatId)
+        public bool Save(long chatId, out int periodId, int menstruationDictionaryValue = 0, int cycleDictionaryValue = 0, DateTime dateOfLastMenstruationDicionaryValue = default)
         {
-            int menstruationDictionaryValue = 0;
-            int cycleDictionaryValue = 0;
-            DateTime dateOfLastMenstruationDicionaryValue = DateTime.MinValue;
-            
-            if (GetDictionary(chatId, MenstruationDictionary, out menstruationDictionaryValue) 
-                && GetDictionary(chatId, CycleDictionary, out cycleDictionaryValue) 
-                && GetDictionary(chatId, DateOfLastMenstruationDictionary, out dateOfLastMenstruationDicionaryValue))
+            bool isOk = false;
+            int perId = 0;
+
+            if (menstruationDictionaryValue == 0 && cycleDictionaryValue == 0 && dateOfLastMenstruationDicionaryValue == DateTime.MinValue)
             {
-                if (new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).SaveDB(new Period(chatId, menstruationDictionaryValue, cycleDictionaryValue, dateOfLastMenstruationDicionaryValue, dateOfLastMenstruationDicionaryValue.AddDays(cycleDictionaryValue))))
+                MenstruationDictionary.TryGetValue(chatId, out menstruationDictionaryValue);
+                CycleDictionary.TryGetValue(chatId, out cycleDictionaryValue);
+                DateOfLastMenstruationDictionary.TryGetValue(chatId, out dateOfLastMenstruationDicionaryValue);
+            }
+
+            if (menstruationDictionaryValue != 0 && cycleDictionaryValue != 0 && dateOfLastMenstruationDicionaryValue != DateTime.MinValue)
+            {
+                if (new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Save(new Period(chatId, menstruationDictionaryValue, cycleDictionaryValue, dateOfLastMenstruationDicionaryValue, dateOfLastMenstruationDicionaryValue.AddDays(cycleDictionaryValue))))
                 {
-                    await PrintMessage($"Налаштування успішно збережено.\nТвій наступний цикл {DateOfLastMenstruationDictionary[chatId].AddDays(CycleDictionary[chatId])}", chatId);
+                    perId = new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load().Where(per => per.ChatId == chatId).Last().Id;
+
                     MenstruationDictionary.Remove(chatId);
                     CycleDictionary.Remove(chatId);
                     DateOfLastMenstruationDictionary.Remove(chatId);
-                    return true;
+                    isOk = true;
                 }
-                else
-                    await PrintMessage("Налаштування не збережено.", chatId);
-            }     
-            return false;
+            }
+
+            periodId = perId;
+            return isOk;
         }
 
         /// <summary>
@@ -242,9 +236,12 @@ namespace MySuperUniversalBot_BL.Controller
                     // Checks all cycles and, if necessary, sends a text to the user and his friends.
                     CheckPeriodDay(-7, Periods, "Муки через 7 днів.", "В неї Муки через 7 днів.");
                     CheckPeriodDay(-3, Periods, "Муки через 3 дні.", "В неї Муки через 3 дні.");
+                    CheckPeriodDay(-2, Periods, "Муки через 2 дні.", "В неї Муки через 2 дні.");
                     CheckPeriodDay(-1, Periods, "Муки через 1 день.", "В неї Муки через 1 день.");
-                    CheckPeriodDay(0, Periods, "Сьогодні перший день за графіком, як тільки розпочнеться цикл натисни \"Розпочались\".", "В неї Сьогодні перший день за графіком, як тільки розпочнеться цикл натисни \"Розпочались\".");
-
+                    CheckPeriodDay(0, Periods, "Сьогодні перший день за графіком, як тільки розпочнеться цикл натисни \"Розпочались\".", "В неї сьогодні перший день за графіком, як тільки розпочнеться цикл я тобі повідомлю.");
+                    CheckPeriodDay(1, Periods, "Перший день затримки.", "В неї Сьогодні перший день затримки.");
+                    CheckPeriodDay(2, Periods, "Другий день затримки.", "В неї Сьогодні другий день затримки.");
+                    CheckPeriodDay(3, Periods, "Третій день затримки.", "В неї Сьогодні третій день затримки.");
                     Thread.Sleep(1000);
                 }
             });
@@ -264,7 +261,7 @@ namespace MySuperUniversalBot_BL.Controller
                                {
                                    // send text for user.
                                    p.isNotify = true;
-                                   new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
+                                   new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Update(p);
                                    await PrintMessage(textMsg, p.ChatId);
 
                                    // send text for friends.
@@ -283,17 +280,17 @@ namespace MySuperUniversalBot_BL.Controller
         /// </summary>
         public void ChangeIsNotifyThread()
         {
-            Task changeIsNotify = Task.Run(() =>
+            Task.Run(() =>
             {
                 while (true)
                 {
-                    new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB().ForEach(p =>
+                    new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load().ForEach(p =>
                     {
                         p.isNotify = false;
-                        new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
+                        new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Update(p);
                     });
 
-                    Thread.Sleep(86400000);
+                    Thread.Sleep(10000);
                 }
             });
         }
@@ -302,11 +299,10 @@ namespace MySuperUniversalBot_BL.Controller
         /// Starts the user's period and sets the date of the next cycle.
         /// </summary>
         /// <param name="chatId"></param>
-        public async void UpdatePeriodAsync(long chatId)
+        public async void Update(long chatId)
         {
             bool isOK = false;
-            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB(out List<Period> periods);
-            periods = periods.Where(p => p.ChatId == chatId).ToList();
+            var periods = new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load().Where(p => p.ChatId == chatId).ToList();
 
             if (periods.Count != 0)
             {
@@ -332,7 +328,7 @@ namespace MySuperUniversalBot_BL.Controller
                             p.DurationMenstruationVariable = p.DurationMenstruation;
                             p.DateOfLastMenstruation = DateTime.Today;
                             p.DateOfNextMenstruation = DateTime.Today.AddDays(p.DurationСycle);
-                            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
+                            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Update(p);
                             isOK = true;
                         });
                     }
@@ -367,7 +363,7 @@ namespace MySuperUniversalBot_BL.Controller
                       {
                           period.isNotify = true;
                           period.DurationMenstruationVariable -= 1;
-                          new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(period);
+                          new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Update(period);
                           await PrintMessage($"Ще всього лиш декілька({period.DurationMenstruationVariable + 1}) днів.", period.ChatId);
                           period.NotifyTheUser.ForEach(async n =>
                           {
@@ -381,7 +377,7 @@ namespace MySuperUniversalBot_BL.Controller
                             p.DateOfNextMenstruation = DateTime.Today.AddDays(p.DurationСycle);
                             p.DurationMenstruationVariable = -1;
                             p.isNotify = true;
-                            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).UpdateDB(p);
+                            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Update(p);
                             await PrintMessage($"Цикл закінчився.\nНаступний період: {p.DateOfNextMenstruation}.", p.ChatId);
                             p.NotifyTheUser.ForEach(async n =>
                             {
@@ -393,49 +389,20 @@ namespace MySuperUniversalBot_BL.Controller
             });
         }
 
-        /// <summary>
-        /// Returns the period of the user.
-        /// </summary>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="cancellationToken">Token.</param>
-        public async void DisplayPeriod(long chatId, CancellationToken cancellationToken)
+        public void ClearDictionary()
         {
-            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB(out List<Period> period);
-
-            period = period.Where(per => per.ChatId == chatId).ToList();
-
-            if (period.Count != 0)
+            foreach (var item in ClearDictionaryUser)
             {
-                period.ForEach(async p =>
+                if (item.Value >= 5 && item.Value != 0)
                 {
-                    await PrintInline($"{p.DurationMenstruation} {p.DurationСycle} {p.DateOfLastMenstruation}", chatId, SetupInLine(CallbackQueryCommands.Видалити.ToString(), CallbackQueryCommands.deletePeriod.ToString() + p.Id));
-                });
-            }
-            else
-            {
-                await PrintMessage("У тебе немає створеного циклу, вже самий час його створити.", chatId);
-            }
-        }
-
-        /// <summary>
-        /// Gets a callback and deletes a menstrual cycle.
-        /// </summary>
-        /// <param name="callbackQuery"></param>
-        public async void DeletePeriod(CallbackQuery callbackQuery)
-        {
-            string messageText = callbackQuery.Data.Replace(CallbackQueryCommands.deletePeriod.ToString(), "");
-
-            new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB(out List<Period> periods);
-
-            foreach (var period in periods)
-            {
-                if (period.Id == Convert.ToInt32(messageText))
+                    ClearDictionaryUser[item.Key] = item.Value - 1;
+                }
+                else if (item.Value == 0)
                 {
-                    if (new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).RemoveDB(period))
-                        await PrintMessage("Цикл видалено.", callbackQuery.Message.Chat.Id);
-                    else
-                        await PrintMessage("Цикл не видалено.", callbackQuery.Message.Chat.Id);
-                    return;
+                    MenstruationDictionary.Remove(item.Key);
+                    CycleDictionary.Remove(item.Key);
+                    DateOfLastMenstruationDictionary.Remove(item.Key);
+                    ClearDictionaryUser.Remove(item.Key);
                 }
             }
         }

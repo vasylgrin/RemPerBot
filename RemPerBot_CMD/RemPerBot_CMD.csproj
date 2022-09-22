@@ -11,4 +11,8 @@
     <ProjectReference Include="..\RemPerBot_BL\RemBerBot_BL.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Controller\" />
+  </ItemGroup>
+
 </Project>

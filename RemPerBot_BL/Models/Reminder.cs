@@ -1,16 +1,18 @@
-﻿namespace MySuperUniversalBot_BL.Models
+﻿using RemBerBot_BL.Models;
+
+namespace MySuperUniversalBot_BL.Models
 {
-    public class Reminder
+    public class Reminder : ModelBase
     {
         /// <summary>
         /// The reminder ID for the database.
         /// </summary>
-        public int Id { get; set; }
+        public override int Id { get; set; }
 
         /// <summary>
         /// Chat ID of the user who saves/receives reminders.
         /// </summary>
-        public long ChatId { get; set; }
+        public override long ChatId { get; set; }
 
         /// <summary>
         /// Reminder subject.
@@ -51,6 +53,11 @@
         public Reminder()
         {
 
+        }
+
+        public override string PrintData()
+        {
+            return $"Тема: {Topic}\nДата: {DateTime}";
         }
     }
 }

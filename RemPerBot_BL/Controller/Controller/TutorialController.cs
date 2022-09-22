@@ -1,6 +1,8 @@
-﻿using MySuperUniversalBot_BL.Controller;
+﻿using Microsoft.EntityFrameworkCore;
+using MySuperUniversalBot_BL.Controller;
 using MySuperUniversalBot_BL.Controller.ControllerBase;
 using MySuperUniversalBot_BL.Models;
+using RemBerBot_BL.Models;
 using Telegram.Bot.Types;
 
 namespace RemBerBot_BL.Controller.Controller
@@ -21,10 +23,13 @@ namespace RemBerBot_BL.Controller.Controller
         ReminderController reminderController = new();
         PeriodController periodController = new();
         NotifyTheUserController notifyTheUserController = new();
+        ObjectControllerBase objectControllerBase = new();
 
         Dictionary<long, NotAllowed> TutorialDictionary = new();
 
         Dictionary<long, string> TutorialUserDictionary = new();
+
+        Dictionary<long, int> IdObjectForClearDataUserTutorial = new();
 
         #endregion
 
@@ -33,6 +38,7 @@ namespace RemBerBot_BL.Controller.Controller
         enum NotAllowed
         {
             AddReminder = 1,
+            tutorialReminderSave,
             DisplayReminder,
             AddPeriod,
             DisplayPeriod,
@@ -67,11 +73,13 @@ namespace RemBerBot_BL.Controller.Controller
 
         #endregion
 
+        #region Tutorial
+
         public async Task<bool> Tutorial(long chatId, string inputText, string tutorial, Update update, CancellationToken token)
         {
             bool isOk = false;
 
-            SetsTheInitialValue(chatId, InputTextDictionary, CurrentOperationDictionary, IsStartAddedObjectDictionary);
+            objectControllerBase.SetsTheInitialValue(chatId, InputTextDictionary, CurrentOperationDictionary, IsStartAddedObjectDictionary);
 
             if (inputText.Contains(GeneralCommands.Назад.ToString()))
             {
@@ -80,6 +88,7 @@ namespace RemBerBot_BL.Controller.Controller
             else if (inputText.Contains("tutorialComplete"))
             {
                 await PrintMessage("Туторчик завершений.", chatId);
+                ClearEndDataTutorial(chatId);
                 isOk = true;
             }
             else if (tutorial.Contains(TutorialReminderEnum.tutorialReminder.ToString()))
@@ -98,8 +107,6 @@ namespace RemBerBot_BL.Controller.Controller
             return isOk;
         }
 
-        #region Tutorial
-
         private async Task TutorialReminder(long chatId, string inputText, Update update, CancellationToken token)
         {
             if (inputText == TutorialReminderEnum.tutorialReminder.ToString())
@@ -112,38 +119,61 @@ namespace RemBerBot_BL.Controller.Controller
                 await PrintKeyboard($"Перед тобою з'явились три кнопки: \nДодати, Переглянути та Назад." +
                 $"\nМожливо ти вже дагадався(лась) що ці кнопки виконують, але ми зараз розглянемо детальніше." +
                 $"\nНатисни Додати щоб додати нове нагадування.", chatId, SetupKeyboard(ReminderCommands.Додати.ToString(), ReminderCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), token);
+                objectControllerBase.SetDictionary(chatId, NotAllowed.AddReminder, TutorialDictionary);
             }
             else if (inputText == ReminderCommands.Додати.ToString() || ReminderCommands.Додати.ToString() == CurrentOperationDictionary[chatId])
             {
-                if (AddObject(chatId, inputText, ReminderCommands.Додати.ToString(), ReminderCommands.Додати.ToString(), AddReminder, token, update))
+                if(TutorialDictionary[chatId] == NotAllowed.AddReminder)
                 {
-                    await PrintMessage("Твоє нагадування поки знаходитсья в моїй цифровій макітрі, щоб я його запам'ятав перевірь дані та натискай Зберегти.", chatId);
-                    await reminderController.DisplayCurrentReminder(chatId, TutorialReminderEnum.tutorialReminderSave.ToString());
+                    if (AddObject(chatId, inputText, ReminderCommands.Додати.ToString(), ReminderCommands.Додати.ToString(), AddReminder, token, update))
+                    {
+                        await PrintKeyboard("Твоє нагадування поки знаходитсья в моїй цифровій макітрі, щоб я його запам'ятав перевірь дані та натискай Зберегти.", chatId, SetupKeyboard(ReminderCommands.Додати.ToString(), ReminderCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), token);
+                        await reminderController.DisplayCurrentReminder(chatId, TutorialReminderEnum.tutorialReminderSave.ToString());
+                        objectControllerBase.SetDictionary(chatId, NotAllowed.tutorialReminderSave, TutorialDictionary);
+                    }
+                }
+                else
+                {
+                    await PrintMessage("Притримуйся інструкції будь ласка.", chatId);
+                    return;
                 }
             }
             else if (inputText == TutorialReminderEnum.tutorialReminderSave.ToString())
             {
-                if (await reminderController.SaveReminderAsync(chatId))
+                if(objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.tutorialReminderSave)
                 {
-                    await PrintMessage("Таакссс... Ну я його постараюсь не забути, а ти тепер ти можеш перевірити активні нагадування, " +
-                        "та видалити їх якщо вони тобі не потрібні. Щоб зробити це" +
-                        "\nНатисни Переглянути.", chatId, 2000);
-                    SetDictionary(chatId, NotAllowed.DisplayReminder, TutorialDictionary);
+                    if (reminderController.Save(chatId, out int reminderId))
+                    {
+                        await PrintMessage("Таакссс... Ну я його постараюсь не забути, а ти тепер ти можеш перевірити активні нагадування, " +
+                            "та видалити їх якщо вони тобі не потрібні. Щоб зробити це" +
+                            "\nНатисни Переглянути.", chatId, 2000);
+                        objectControllerBase.SetDictionary(chatId, NotAllowed.DisplayReminder, TutorialDictionary);
+
+                        IdObjectForClearDataUserTutorial.Add(chatId, reminderId);
+                    }
                 }
             }
             else if (inputText == ReminderCommands.Переглянути.ToString())
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.DisplayReminder)
+                if (TutorialDictionary[chatId] == NotAllowed.DisplayReminder)
                 {
-                    await new ReminderController().DisplayReminder(chatId, token);
+                    objectControllerBase.Display<Reminder>(chatId, "У тебе немає нагадувань, час їх створити.", CallbackQueryCommands.deleteReminder, new DataBaseContextForReminder());
                     Task.Delay(1000).Wait();
                     await PrintInline("Ну що ж тобі сказати друже, постараюсь не забути, " +
                         "а ти поки можеш тут нууу... як тобі сказати, дивитись мої можливості далі. Так що\nТисни Далі", chatId, SetupInLine("Далі", TutorialPeriodEnum.tutorialPeriod.ToString()));
                     return;
                 }
 
-                await PrintMessage("Притримуйся інструкції будь ласка, тисни Додати.", chatId);
-                return;
+                if(TutorialDictionary[chatId] == NotAllowed.AddReminder)
+                {
+                    await PrintMessage("Притримуйся інструкції будь ласка, тисни Додати.", chatId);
+                    return;
+                }
+                else if (TutorialDictionary[chatId] == NotAllowed.tutorialReminderSave)
+                {
+                    await PrintMessage("Притримуйся інструкції будь ласка, тисни Зберегти.", chatId);
+                    return;
+                }
 
             }
             else if (inputText == PeriodCommands.Період.ToString())
@@ -185,18 +215,18 @@ namespace RemBerBot_BL.Controller.Controller
                     " але навіщо я тобі це розповідаю якщо ти можеш сам(а) перевірити, хутчіш \nНатискай Створити.",
                     chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), token);
 
-                SetDictionary(chatId, NotAllowed.AddPeriod, TutorialDictionary);
+                objectControllerBase.SetDictionary(chatId, NotAllowed.AddPeriod, TutorialDictionary);
                 return;
             }
             else if (inputText == PeriodCommands.Створити.ToString() || PeriodCommands.Створити.ToString() == CurrentOperationDictionary[chatId])
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.AddPeriod)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.AddPeriod)
                 {
                     if (AddObject(chatId, inputText, PeriodCommands.Створити.ToString(), PeriodCommands.Створити.ToString(), AddPeriod, token, update))
                     {
                         await periodController.DisplayCurrentPeriod(chatId, CallbackQueryCommands.savePeriod.ToString());
                         await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), token);
-                        SetDictionary(chatId, NotAllowed.DisplayPeriod, TutorialDictionary);
+                        objectControllerBase.SetDictionary(chatId, NotAllowed.DisplayPeriod, TutorialDictionary);
                     }
                     return;
                 }
@@ -206,21 +236,23 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == TutorialPeriodEnum.tutorialPeriodSave.ToString())
             {
-                if (await periodController.SavePeriodAsync(chatId))
+                if (periodController.Save(chatId, out int periodId))
                 {
                     await PrintMessage("Ти ж моя розумашка, тепер ти можеш проглянути свій цикл.\nТисни Проглянути.", chatId, 2000);
-                    SetDictionary(chatId, NotAllowed.DisplayPeriod, TutorialDictionary);
+                    objectControllerBase.SetDictionary(chatId, NotAllowed.DisplayPeriod, TutorialDictionary);
+
+                    IdObjectForClearDataUserTutorial.Add(chatId, periodId);
                 }
             }
             else if (inputText == PeriodCommands.Проглянути.ToString())
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.DisplayPeriod)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.DisplayPeriod)
                 {
                     await PrintMessage("Тут ти можеш перевірити свій цикл та видалити його якщо захочеш щось змінити, все наче просто, тому йдемо далі.", chatId, 2000);
-                    new PeriodController().DisplayPeriod(chatId, token);
+                    objectControllerBase.Display<Period>(chatId, "У тебе немає створеного циклу, вже самий час його створити.", CallbackQueryCommands.deletePeriod, new DataBaseContextForPeriod());
                     await PrintMessage("Кнопка Розпочались створена для того щоб розпочати відлік днів менструації, так як інколи бувають затримки або можуть раніше розпочатись \"ці дні\"." +
                         "\nДля перевірки та розуміння її роботи, натискай Розпочались(якщо ти ввів(ввела) все як було вказано вище то все буде добре, якщо ні то може бути сюрприз у вигляді помилки).", chatId, 2000);
-                    SetDictionary(chatId, NotAllowed.startMenstruation, TutorialDictionary);
+                    objectControllerBase.SetDictionary(chatId, NotAllowed.startMenstruation, TutorialDictionary);
                     return;
                 }
 
@@ -229,9 +261,9 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == PeriodCommands.Розпочались.ToString())
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.startMenstruation)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.startMenstruation)
                 {
-                    new PeriodController().UpdatePeriodAsync(chatId);
+                    new PeriodController().Update(chatId);
                     await PrintInline("Ну ось ти й розпочав(ла) свій перший цикл, наче все просто тому йдемо далі.\nНатисни Далі.", chatId, SetupInLine("Далі", TutorialNotifyTheUserEnum.tutorialNotifyTheUser.ToString()));
                     return;
 
@@ -276,7 +308,7 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == NotifyTheUserCommands.Користувачі.ToString())
             {
-                SetDictionary(chatId, NotAllowed.ClickMyIdNotifyTheUser, TutorialDictionary);
+                objectControllerBase.SetDictionary(chatId, NotAllowed.ClickMyIdNotifyTheUser, TutorialDictionary);
                 await PrintKeyboard("Перед тобою чотири кнопки:\nДобавити, Продивитись, MyId та Назад." +
                     "Все впринципі працює та виглядає як те, що ти бавчи раніше, тому я думаю у тебе не виникнуть проблеми з цим, але перед тим як добавити свого першого користувача(в даному випадку ти добавиш сам себе), дізнайся свій Chat Id." +
                     "\nНатисни MyId.", chatId, SetupKeyboard(NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), token);
@@ -284,14 +316,14 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == GeneralCommands.myId.ToString())
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.ClickMyIdNotifyTheUser)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.ClickMyIdNotifyTheUser)
                 {
                     await PrintMessage($"Id твого чату:", chatId);
                     await PrintMessage($"{chatId}", chatId);
 
                     await PrintMessage("Тепер натисни Добавити, та дотримуйся інструкції.", chatId);
 
-                    SetDictionary(chatId, NotAllowed.addNotifyTheUser, TutorialDictionary);
+                    objectControllerBase.SetDictionary(chatId, NotAllowed.addNotifyTheUser, TutorialDictionary);
                     return;
                 }
 
@@ -300,7 +332,7 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == NotifyTheUserCommands.Добавити.ToString() || NotifyTheUserCommands.Добавити.ToString() == CurrentOperationDictionary[chatId])
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.addNotifyTheUser)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.addNotifyTheUser)
                 {
                     if (AddObject(chatId, inputText, NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Добавити.ToString(), AddNotifyTheUser, token, update))
                     {
@@ -320,25 +352,27 @@ namespace RemBerBot_BL.Controller.Controller
             }
             else if (inputText == TutorialNotifyTheUserEnum.tutorialNotifyTheUserConfirmInvite.ToString())
             {
-                if (await notifyTheUserController.SaveNotifyTheUserAsync(chatId))
+                if (notifyTheUserController.Save(chatId, out int notifyTheUserId))
                 {
                     await PrintMessage("Вітаю... Тепер у тебе є перший добавлений користувач, далі що тобі потрібно зробити це продивитись своїх користувачів. \nНатисни Продивитись.", chatId);
-                    SetDictionary(chatId, NotAllowed.DisplayNotifyTheUser, TutorialDictionary);
+                    objectControllerBase.SetDictionary(chatId, NotAllowed.DisplayNotifyTheUser, TutorialDictionary);
+
+                    IdObjectForClearDataUserTutorial.Add(chatId, notifyTheUserId);
                 }
             }
             else if (inputText == NotifyTheUserCommands.Продивитись.ToString())
             {
-                if (GetDictionary(chatId, TutorialDictionary) == NotAllowed.DisplayNotifyTheUser)
+                if (objectControllerBase.GetDictionary(chatId, TutorialDictionary) == NotAllowed.DisplayNotifyTheUser)
                 {
-                    await new NotifyTheUserController().DispalyNotifyTheUser(chatId, token);
+                    objectControllerBase.Display<Period>(chatId, "У тебе немає доданих користувачів, мені здається самий час їх добавити.", CallbackQueryCommands.deleteNotifyTheUser, new DataBaseContextForPeriod());
                     Task.Delay(2000).Wait();
 
                     await PrintMessage("Ехх... Ти так швидко все запамятовуєш що я навіть не встиг додати 2 + 2." +
                         "\nНа цьому туторчик закінчився, тому я та мій розробник бажаємо тобі не забувати нічого що б не створювати Нагадування, та безболісного циклу.", chatId, 2000);
 
-                    new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).LoadDB().Where(x => x.ChatId == chatId).ToList().ForEach(x =>
+                    new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load().Where(x => x.ChatId == chatId).ToList().ForEach(x =>
                       {
-                          new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).RemoveDB(x);
+                          new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Remove(x);
                       });
                     return;
                 }
@@ -355,11 +389,35 @@ namespace RemBerBot_BL.Controller.Controller
 
         #endregion
 
+        #region ClearEndDataTutorial
+
+        public void ClearEndDataTutorial(long chatId)
+        {
+            Clear<Reminder>(new DataBaseContextForReminder(), chatId);
+            Clear<Period>(new DataBaseContextForPeriod(), chatId);
+            Clear<NotifyTheUser>(new DataBaseContextForPeriod(), chatId);
+        }
+
+        private void Clear<G>(DbContext context, long chatId) where G : ModelBase
+        {
+            if (IdObjectForClearDataUserTutorial.ContainsKey(chatId))
+            {
+                DataBaseControllerBase<G> dataBaseControllerBase = new(context);
+
+                dataBaseControllerBase.Load().Where(x=>x.Id == IdObjectForClearDataUserTutorial[chatId]).ToList().ForEach(async x =>
+                {
+                    dataBaseControllerBase.Remove(x);
+                });
+            }
+        }
+
+        #endregion
+
         #region AddObject
 
         private bool AddReminder(long chatId, CancellationToken cancellationToken, Update update)
         {
-            if (reminderController.AddReminder(InputTextDictionary[chatId], AddReminderDictionary[chatId], chatId, cancellationToken, out AddReminderDictionary, out NavigationDictionary, out InputTextDictionary))
+            if (reminderController.Add(InputTextDictionary[chatId], AddReminderDictionary[chatId], chatId, cancellationToken, out AddReminderDictionary, out NavigationDictionary))
                 return true;
             else
                 return false;
@@ -367,11 +425,11 @@ namespace RemBerBot_BL.Controller.Controller
 
         private bool AddPeriod(long chatId, CancellationToken cancellationToken, Update update)
         {
-            if (periodController.AddPeriod(InputTextDictionary[chatId], AddPeriodDictionary[chatId], chatId, cancellationToken, out AddPeriodDictionary, out NavigationDictionary, out InputTextDictionary, out bool isExistPeriodOut))
+            if (periodController.Add(InputTextDictionary[chatId], AddPeriodDictionary[chatId], chatId, cancellationToken, out AddPeriodDictionary, out NavigationDictionary, out bool isExistPeriodOut))
             {
                 if (isExistPeriodOut)
                 {
-                    SetDictionary(chatId, "", CurrentOperationDictionary);
+                    objectControllerBase.SetDictionary(chatId, "", CurrentOperationDictionary);
                     return false;
                 }
                 return true;
@@ -382,7 +440,7 @@ namespace RemBerBot_BL.Controller.Controller
 
         private bool AddNotifyTheUser(long chatId, CancellationToken cancellationToken, Update update)
         {
-            if (notifyTheUserController.AddNotifyTheUser(InputTextDictionary[chatId], AddNotifyTheUserDictionary[chatId], update, chatId, cancellationToken, out AddNotifyTheUserDictionary, out NavigationDictionary, out InputTextDictionary))
+            if (notifyTheUserController.Add(InputTextDictionary[chatId], AddNotifyTheUserDictionary[chatId], update, chatId, cancellationToken, out AddNotifyTheUserDictionary, out NavigationDictionary))
                 return true;
             else
                 return false;
@@ -393,12 +451,12 @@ namespace RemBerBot_BL.Controller.Controller
             bool isOk = false;
             if (IsStartAddedObjectDictionary[chatId])
             {
-                SetDictionary(chatId, AddReminderEnum.addReminder, AddReminderDictionary);
-                SetDictionary(chatId, NavigationEnum.AddReminder, NavigationDictionary);
-                SetDictionary(chatId, false, IsStartAddedObjectDictionary);
+                objectControllerBase.SetDictionary(chatId, AddReminderEnum.addReminder, AddReminderDictionary);
+                objectControllerBase.SetDictionary(chatId, AddPeriodEnum.addPeriod, AddPeriodDictionary);
+                objectControllerBase.SetDictionary(chatId, AddNotifyTheUserEnum.addNotifyTheUser, AddNotifyTheUserDictionary);
+                objectControllerBase.SetDictionary(chatId, NavigationEnum.AddReminder, NavigationDictionary);
+                objectControllerBase.SetDictionary(chatId, false, IsStartAddedObjectDictionary);
             }
-
-            SetsTheInitialValue(chatId, InputTextDictionary, CurrentOperationDictionary, IsStartAddedObjectDictionary);
 
             if (InputTextDictionary.ContainsKey(chatId))
                 InputTextDictionary[chatId] += messageText.Replace(replaceText, "");
@@ -408,14 +466,14 @@ namespace RemBerBot_BL.Controller.Controller
             {
                 if (deleagate.Invoke(chatId, cancellationToken, update))
                 {
-                    SetDictionary(chatId, "", CurrentOperationDictionary);
-                    SetDictionary(chatId, true, IsStartAddedObjectDictionary);
+                    objectControllerBase.SetDictionary(chatId, "", CurrentOperationDictionary);
+                    objectControllerBase.SetDictionary(chatId, true, IsStartAddedObjectDictionary);
                     isOk = true;
                 }
                 else
                 {
-                    SetDictionary(chatId, buttonName, CurrentOperationDictionary);
-                    SetDictionary(chatId, "", InputTextDictionary);
+                    objectControllerBase.SetDictionary(chatId, buttonName, CurrentOperationDictionary);
+                    objectControllerBase.SetDictionary(chatId, "", InputTextDictionary);
                 }
             }
             return isOk;
@@ -427,7 +485,7 @@ namespace RemBerBot_BL.Controller.Controller
         {
             bool isOk = false;
 
-            SetDictionary(chatId, tutorialUser, TutorialUserDictionary);
+            objectControllerBase.SetDictionary(chatId, tutorialUser, TutorialUserDictionary);
 
             if (TutorialUserDictionary.ContainsKey(chatId))
             {

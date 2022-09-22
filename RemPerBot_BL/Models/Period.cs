@@ -1,18 +1,20 @@
-﻿namespace MySuperUniversalBot_BL.Models
+﻿using RemBerBot_BL.Models;
+
+namespace MySuperUniversalBot_BL.Models
 {
-    public class Period
+    public class Period : ModelBase
     {
         #region Property
 
         /// <summary>
         /// The reminder ID for the database.
         /// </summary>
-        public int Id { get; set; }
+        public override int Id { get; set; }
 
         /// <summary>
         /// Chat ID of the user who saves/receives period.
         /// </summary>
-        public long ChatId { get; set; }
+        public override long ChatId { get; set; }
 
         /// <summary>
         /// Duration of menstruation.
@@ -59,7 +61,6 @@
         /// <exception cref="ArgumentException"></exception>
         public Period(long chatId, int durationMenstruation, int durationСycle, DateTime dateOfLastMenstruation, DateTime dateOfNextMenstruation)
         {
-
             #region check for null
 
             if (chatId <= 0)
@@ -90,6 +91,16 @@
             DurationMenstruation = durationMenstruation;
             DateOfLastMenstruation = dateOfLastMenstruation;
             DateOfNextMenstruation = dateOfNextMenstruation;
+        }
+
+        public Period()
+        {
+
+        }
+
+        public override string PrintData()
+        {
+            return $"Тривалість менструації: {DurationMenstruation}\nТривалість циклу: {DurationСycle}\nДата останьої менструації: {DateOfLastMenstruation.ToShortDateString()}\nДата наступної менструації: {DateOfNextMenstruation.ToShortDateString()}";
         }
     }
 }

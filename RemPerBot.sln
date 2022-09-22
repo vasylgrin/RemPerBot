@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.1.32203.90
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemPerBot_BL", "RemPerBot_BL\RemBerBot_BL.csproj", "{EE76ED9B-70D3-43DF-96DF-2B7DC709DAD4}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemBerBot_BL", "RemPerBot_BL\RemBerBot_BL.csproj", "{EE76ED9B-70D3-43DF-96DF-2B7DC709DAD4}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemPerBot_CMD", "RemPerBot_CMD\RemPerBot_CMD.csproj", "{72D06D48-9DA8-40B6-8D7B-F2D83B3A1987}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RemPerBot_CMD", "RemPerBot_CMD\RemPerBot_CMD.csproj", "{72D06D48-9DA8-40B6-8D7B-F2D83B3A1987}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemBerBot_BLTests1", "RemBerBot_BLTests1\RemBerBot_BLTests1.csproj", "{C31E7490-8BE5-4268-9289-2311C5DA18BD}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{72D06D48-9DA8-40B6-8D7B-F2D83B3A1987}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{72D06D48-9DA8-40B6-8D7B-F2D83B3A1987}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{72D06D48-9DA8-40B6-8D7B-F2D83B3A1987}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C31E7490-8BE5-4268-9289-2311C5DA18BD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C31E7490-8BE5-4268-9289-2311C5DA18BD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C31E7490-8BE5-4268-9289-2311C5DA18BD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C31E7490-8BE5-4268-9289-2311C5DA18BD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

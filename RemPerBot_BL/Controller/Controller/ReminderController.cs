@@ -1,54 +1,34 @@
 ﻿using MySuperUniversalBot_BL.Controller.ControllerBase;
 using MySuperUniversalBot_BL.Models;
-using Telegram.Bot.Types;
+using RemBerBot_BL.Controller.Controller;
 
 namespace MySuperUniversalBot_BL.Controller
 {
     public class ReminderController : BotControllerBase
     {
+        #region Variable
+
         Dictionary<long, string> TopicDictionary = new();
         Dictionary<long, DateTime> DateTimeDictionary = new();
-         
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="inputText"></param>
-        /// <param name="addReminderEnum"></param>
-        /// <param name="chatId"></param>
-        /// <param name="token"></param>
-        /// <param name="AddReminderDictionary"></param>
-        /// <param name="NavigationDictionary"></param>
-        /// <param name="InputTextDictionary"></param>
-        /// <returns></returns>
-        public bool AddReminder(string inputText, AddReminderEnum addReminderEnum, long chatId, CancellationToken token, out Dictionary<long, AddReminderEnum> AddReminderDictionary, out Dictionary<long, NavigationEnum> NavigationDictionary, out Dictionary<long, string> InputTextDictionary)
+        Dictionary<long, int> ClearDictionaryUser = new();
+        ObjectControllerBase objectControllerBase = new();
+
+        #endregion
+
+        public bool Add(string inputText, AddReminderEnum addReminderEnum, long chatId, CancellationToken token, out Dictionary<long, AddReminderEnum> AddReminderDictionary, out Dictionary<long, NavigationEnum> NavigationDictionary)
         {
             bool isOK = false;
-            
-            AddReminderEnum addReminderEnumOut = AddReminderEnum.addReminder;
-            NavigationEnum navigationEnumOut = NavigationEnum.AddReminder;
-            
+
             AddReminderDictionary = new Dictionary<long, AddReminderEnum>();
             NavigationDictionary = new Dictionary<long, NavigationEnum>();
-            InputTextDictionary = new Dictionary<long, string>();
 
-            Task task = Task.Run(async () =>
+            if (CheckForSaveReminder(chatId, inputText, addReminderEnum, out AddReminderEnum addReminderEnumOut, out NavigationEnum navigationEnumOut, token))
             {
-                if (CheckForSaveReminder(chatId, inputText, addReminderEnum, out addReminderEnumOut, out navigationEnumOut, token))
-                {
-                    await DisplayCurrentReminder(chatId, CallbackQueryCommands.saveReminder.ToString());
-                    await PrintKeyboard("Обирай:", chatId, SetupKeyboard(ReminderCommands.Додати.ToString(), ReminderCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), token);
-                    isOK = true;
-                }
-            });
+                isOK = true;
+            }
 
-            task.Wait();
-            
-            if(isOK)
-                SetDictionary(chatId, "", InputTextDictionary);
-
-
-            SetDictionary(chatId, addReminderEnumOut, AddReminderDictionary);
-            SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
+            objectControllerBase.SetDictionary(chatId, addReminderEnumOut, AddReminderDictionary);
+            objectControllerBase.SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
             return isOK;
         }
 
@@ -80,7 +60,8 @@ namespace MySuperUniversalBot_BL.Controller
                     if (!string.IsNullOrWhiteSpace(text))
                     {
                         await PrintMessage($"Введіть дату\nНаприклад: {DateTime.Now.AddMinutes(3)}", chatId);
-                        SetDictionary(chatId, text, TopicDictionary);
+                        objectControllerBase.SetDictionary(chatId, text, TopicDictionary);
+                        ClearDictionaryUser.Add(chatId, 5);
                         addRemEnum = AddReminderEnum.addReminderDateTime;
                     }
                     else
@@ -92,7 +73,7 @@ namespace MySuperUniversalBot_BL.Controller
                 else if (addReminderEnum == AddReminderEnum.addReminderDateTime)
                 {
                     text = text.Replace(AddReminderEnum.addReminderDateTime.ToString(), "");
-                    
+
                     if (DateTime.TryParse(text, out DateTime dateTime))
                     {
                         if (dateTime < DateTime.Now)
@@ -104,7 +85,7 @@ namespace MySuperUniversalBot_BL.Controller
                         }
                         else
                         {
-                            SetDictionary(chatId, dateTime, DateTimeDictionary);
+                            objectControllerBase.SetDictionary(chatId, dateTime, DateTimeDictionary);
                             addRemEnum = AddReminderEnum.empty;
                             navEnum = NavigationEnum.ReminderMenu;
                             isOK = true;
@@ -115,11 +96,11 @@ namespace MySuperUniversalBot_BL.Controller
                         addRemEnum = AddReminderEnum.addReminderDateTime;
                         await PrintMessage($"Введіть правильний формат дати.\nНаприклад: {DateTime.Now.AddMinutes(3)}.", chatId);
                     }
-                }             
+                }
             });
 
             AddReminder.Wait();
-            
+
             addReminderEnumOut = addRemEnum;
             navigationEnum = navEnum;
             return isOK;
@@ -139,25 +120,31 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="chatId">Id chat.</param>
         /// <param name="topic">Reminder topic.</param>
         /// <param name="dateTime">Reminder date.</param>
-        public async Task<bool> SaveReminderAsync(long chatId)
+        public bool Save(long chatId, out int reminderId, string topicDictionaryValue = default, DateTime dateTimeDictionaryValue = default)
         {
-            string topicDictionaryValue = "";
-            DateTime dateTimeDictionaryValue = DateTime.MinValue;
+            bool isOk = false;
+            int remId = 0;
 
-            if (GetDictionary(chatId, TopicDictionary, out topicDictionaryValue)
-                && GetDictionary(chatId, DateTimeDictionary, out dateTimeDictionaryValue))
+            if (string.IsNullOrWhiteSpace(topicDictionaryValue) && dateTimeDictionaryValue == DateTime.MinValue)
             {
-                if (new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).SaveDB(new Reminder(chatId, topicDictionaryValue, dateTimeDictionaryValue)))
+                TopicDictionary.TryGetValue(chatId, out topicDictionaryValue);
+                DateTimeDictionary.TryGetValue(chatId, out dateTimeDictionaryValue);
+            }
+
+            if (!string.IsNullOrWhiteSpace(topicDictionaryValue) && dateTimeDictionaryValue != DateTime.MinValue)
+            {
+                if (new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Save(new Reminder(chatId, topicDictionaryValue, dateTimeDictionaryValue)))
                 {
+                    remId = new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Load().Where(r => r.ChatId == chatId).Last().Id;
+
                     TopicDictionary.Remove(chatId);
                     DateTimeDictionary.Remove(chatId);
-                    await PrintMessage("Нагадування збережено.", chatId);
-                    return true;
+                    isOk = true;
                 }
-                else
-                    await PrintMessage("Нагадування не збережено.", chatId);
             }
-            return false;
+
+            reminderId = remId;
+            return isOk;
         }
 
         /// <summary>
@@ -165,75 +152,34 @@ namespace MySuperUniversalBot_BL.Controller
         /// </summary>
         public void CheckReminders()
         {
-            Task.Run(async () => 
+            Task.Run(async () =>
             {
                 while (true)
                 {
-                    // We receive all reminders.
-                    new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).LoadDB(out List<Reminder> reminders);
-
-                    // We choose whether there are reminders that need to happen,and display them to user.                   
-                    foreach(var reminder in reminders)
+                    new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Load().Where(rem => rem.DateTime <= DateTime.Now).ToList().ForEach(async rem =>
                     {
-                        if(reminder.DateTime <= DateTime.Now)
-                        {
-                            await PrintMessage($"Ваше нагадування: \nТема:{reminder.Topic}", reminder.ChatId);
-                            new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).RemoveDB(reminder);
-                        }
-                    }
+                        await PrintMessage($"Ваше нагадування: \nТема:{rem.Topic}", rem.ChatId);
+                        new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Remove(rem);
+                    });
+
                     Task.Delay(1000).Wait();
                 }
             });
         }
 
-        /// <summary>
-        /// Displays all user reminders.
-        /// </summary>
-        /// <param name="chatId">Chat Id</param>
-        /// <param name="cancellationToken">Token.</param>
-        public async Task DisplayReminder(long chatId,CancellationToken cancellationToken)
+        public void ClearDictionary()
         {
-            // Receives all reminders.
-            new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).LoadDB(out List<Reminder> reminders);
-
-            // Selects all user reminders by chatId.
-            reminders = reminders.Where(rem => rem.ChatId == chatId).ToList();
-            
-            // Check for null.
-            if (reminders.Count != 0)
+            foreach (var item in ClearDictionaryUser)
             {
-                // Displays a reminder.
-                reminders.ForEach(async rem =>
+                if (item.Value <= 5 && item.Value != 0)
                 {
-                    await PrintInline($"{rem.Topic} {rem.DateTime}", chatId, SetupInLine(CallbackQueryCommands.Видалити.ToString(), CallbackQueryCommands.deleteReminder.ToString() + rem.Id));
-                });
-                return;
-            }
-            else
-            {
-                await PrintMessage("У тебе немає нагадувань, час їх створити.", chatId);
-                return;
-            }
-        }
-
-        /// <summary>
-        /// Gets the callback and removes the reminder.
-        /// </summary>
-        /// <param name="callbackQuery">Callback.</param>
-        public async void DeleteReminder(CallbackQuery callbackQuery)
-        {
-            string messageText = callbackQuery.Data.Replace(CallbackQueryCommands.deleteReminder.ToString(), "");
-            
-            new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).LoadDB(out List<Reminder> reminders);
-            
-            foreach (var reminder in reminders)
-            {
-                if (reminder.Id == Convert.ToInt32(messageText))
+                    ClearDictionaryUser[item.Key] = item.Value - 1;
+                }
+                else if (item.Value == 0)
                 {
-                    if (new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).RemoveDB(reminder))
-                        await PrintMessage("Нагадування видалено.", callbackQuery.Message.Chat.Id);
-                    else
-                        await PrintMessage("Нагадування не видалено.", callbackQuery.Message.Chat.Id);
+                    TopicDictionary.Remove(item.Key);
+                    DateTimeDictionary.Remove(item.Key);
+                    ClearDictionaryUser.Remove(item.Key);
                 }
             }
         }

@@ -1,20 +1,21 @@
-﻿using System.ComponentModel.DataAnnotations.Schema;
+﻿using RemBerBot_BL.Models;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MySuperUniversalBot_BL.Models
 {
-    public class NotifyTheUser
+    public class NotifyTheUser : ModelBase
     {
         #region Peroperty
 
         /// <summary>
         /// The reminder ID for the database.
         /// </summary>
-        public int? Id { get; set; }
+        public override int Id { get; set; }
         
         /// <summary>
         /// Chat ID of the user who saves/receives notify.
         /// </summary>
-        public long ChatId { get; set; }
+        public override long ChatId { get; set; }
 
         /// <summary>
         /// The chat ID of the user who will receive notifications about the start of ovulation.
@@ -72,6 +73,11 @@ namespace MySuperUniversalBot_BL.Models
         public NotifyTheUser()
         {
 
+        }
+
+        public override string PrintData()
+        {
+            return $"Ім'я користувача: {Name}\nChat Id Користувача: {ChatIdAdded}";
         }
     }
 }

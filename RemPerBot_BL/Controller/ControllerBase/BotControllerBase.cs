@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Microsoft.EntityFrameworkCore;
+using MySuperUniversalBot_BL.Controller.ControllerBase;
+using RemBerBot_BL.Models;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -14,8 +12,9 @@ namespace MySuperUniversalBot_BL.Controller
         #region Variables
 
         TelegramBotClient botClient = new("5268015233:AAFtYMakBaqz-SvLgrmN14IByvkLTP2-404");
-        long chatId;
         CancellationToken cancellationToken;
+
+        
 
         #endregion
 
@@ -33,7 +32,7 @@ namespace MySuperUniversalBot_BL.Controller
         /// <summary>
         /// Enumeration for callbacks.
         /// </summary>
-        protected enum CallbackQueryCommands
+        public enum CallbackQueryCommands
         {
             deletePeriod,
             deleteReminder,
@@ -134,116 +133,17 @@ namespace MySuperUniversalBot_BL.Controller
         #endregion
 
         /// <summary>
-        /// We get the Сhat ID and CancellationToken.
-        /// </summary>
-        /// <param name="chatID">Chat id.</param>
-        /// <param name="_cancellationToken">Token.</param>
-        public void vBotControllerBase(long chatID, CancellationToken _cancellationToken)
-        {
-            chatId = chatID;
-            cancellationToken = _cancellationToken;
-        }
-
-        /// <summary>
-        /// Sets the value in the dictionary.
-        /// </summary>
-        /// <typeparam name="G">The data type that is the value for the dictionary.</typeparam>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="value">The value that we set in the dictionary.</param>
-        /// <param name="dictionary">Dictionary in which data is stored.</param>
-        public void SetDictionary<G>(long chatId, G value, Dictionary<long, G> dictionary)
-        {
-            if (dictionary.ContainsKey(chatId))
-            {
-                dictionary[chatId] = value;
-            }
-            else
-            {
-                dictionary.Add(chatId, value);
-            }
-        }
-
-        #region Overload GetDictionary
-
-        /// <summary>
-        /// Gets the dictionary element if it exists.
-        /// </summary>
-        /// <typeparam name="G">The type of data we will receive.</typeparam>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="dictionary"></param>
-        /// <returns></returns>
-        public G GetDictionary<G>(long chatId, Dictionary<long, G> dictionary)
-        {
-            if (dictionary.ContainsKey(chatId))
-            {
-                return dictionary[chatId];
-            }
-            else
-            {
-                return default;
-            }
-        }
-
-        /// <summary>
-        /// Gets the dictionary element if it exists.
-        /// </summary>
-        /// <typeparam name="G">The type of data we will receive.</typeparam>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="dictionary">Dictionary.</param>
-        /// <param name="res">Result.</param>
-        /// <returns></returns>
-        public bool GetDictionary<G>(long chatId, Dictionary<long, G> dictionary, out G res)
-        {
-            bool isOk = false;
-            if (dictionary.ContainsKey(chatId))
-            {
-                res = dictionary[chatId];
-                isOk = true;
-            }
-            else
-            {
-                res = default;
-            }
-            return isOk;
-        }
-
-        #endregion
-
-        /// <summary>
-        /// Sets the initial value for multiple dictionaries.
-        /// </summary>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="firstDictionary">First Dictionary.</param>
-        /// <param name="secondDictionary">Second Dictionary.</param>
-        /// <param name="thirdDictionary">Third Dictionary.</param>
-        protected void SetsTheInitialValue(long chatId, Dictionary<long, string> firstDictionary, Dictionary<long, string> secondDictionary, Dictionary<long, bool> thirdDictionary)
-        {
-            if (!firstDictionary.ContainsKey(chatId))
-            {
-                firstDictionary[chatId] = "";
-            }
-            if (!secondDictionary.ContainsKey(chatId))
-            {
-                secondDictionary[chatId] = "";
-            }
-            if (!thirdDictionary.ContainsKey(chatId))
-            {
-                thirdDictionary[chatId] = true;
-            }
-        }
-
-        /// <summary>
         /// User keyboard output.
         /// </summary>
         /// <param name="messageText">Message text.</param>
         /// <param name="chatId">Chat id.</param>
         /// <param name="replyKeyboardMarkup">Keyboard for output.</param>
         /// <param name="cancellationToken">Token.</param>
-        public async Task PrintKeyboard(string messageText, long? chatId, ReplyKeyboardMarkup replyKeyboardMarkup,CancellationToken cancellationToken)
+        public async Task PrintKeyboard(string messageText, long? chatId, ReplyKeyboardMarkup replyKeyboardMarkup, CancellationToken cancellationToken)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
             Task.Delay(500).Wait();
-            
+
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
@@ -263,7 +163,7 @@ namespace MySuperUniversalBot_BL.Controller
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
             Task.Delay(500).Wait();
 
-            Message sentMessage = await botClient.SendTextMessageAsync(
+            await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
                 replyMarkup: inlineKeyboardMarkup,
@@ -275,7 +175,7 @@ namespace MySuperUniversalBot_BL.Controller
         /// </summary>
         /// <param name="button1">First button.</param>
         /// <returns></returns>
-        public InlineKeyboardMarkup SetupInLine(string button1,string callBackData)
+        public InlineKeyboardMarkup SetupInLine(string button1, string callBackData)
         {
             InlineKeyboardMarkup inlineKeyboard = new(new[]
             {

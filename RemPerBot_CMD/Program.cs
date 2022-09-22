@@ -16,6 +16,7 @@ long chatId = 0;
 
 BotController botController = new();
 BotControllerBase botControllerBase = new();
+ObjectControllerBase objectControllerBase = new();
 
 ReminderController reminderController = new();
 PeriodController periodController = new();
@@ -27,7 +28,7 @@ reminderController.CheckReminders();
 periodController.CheckPeriodThread();
 periodController.StartMenstruationThread();
 periodController.ChangeIsNotifyThread();
-
+botController.ClearDictionary();
 
 var receiverOptions = new ReceiverOptions
 {
@@ -61,8 +62,8 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
 
         if (messageText.Contains("tutorial"))
         {
-            botControllerBase.SetDictionary(chatId, messageText, UserTutorialDictionary);
-            await EndOfTutorial(chatId, messageText, messageText, update, cancellationToken);
+            objectControllerBase.SetDictionary(chatId, messageText, UserTutorialDictionary);
+            await isStartOrEndOfTutorial(chatId, messageText, messageText, update, cancellationToken);
             Console.WriteLine($"{chatId}: {messageText}");
         }
         else
@@ -78,11 +79,9 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
 
         if (UserTutorialDictionary.ContainsKey(chatId))
         {
-            if (await EndOfTutorial(chatId, messageText, UserTutorialDictionary[chatId], update, cancellationToken))
-            {
-                Console.WriteLine($"{chatId}: {messageText}");
-                return;
-            }
+            await isStartOrEndOfTutorial(chatId, messageText, UserTutorialDictionary[chatId], update, cancellationToken);
+            Console.WriteLine($"{chatId}: {messageText}");
+            return;
         }
 
         await botController.CheckAnswerAsync(messageText, chatId, update, cts.Token);
@@ -90,21 +89,12 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
     }
 }
 
-async Task<bool> EndOfTutorial(long chatId, string messagetText, string tutorialUser, Update update, CancellationToken cancellationToken)
+async Task isStartOrEndOfTutorial(long chatId, string messagetText, string tutorialUser, Update update, CancellationToken cancellationToken)
 {
-    bool isOk = false;
-
     if (await tutorialController.CheckTutorial(chatId, messageText, tutorialUser, update, cancellationToken))
     {
         UserTutorialDictionary.Remove(chatId);
-        isOk = true;
     }
-    else
-    {
-        isOk = true;
-    }
-
-    return isOk;
 }
 
 Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
@@ -115,6 +105,8 @@ Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, Cancell
             => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
         _ => exception.ToString()
     };
+
+    //new TutorialController().ClearEndDataTutorial();
 
     Console.WriteLine(ErrorMessage);
     botController.PrintMessage("Я закантачився.", 501103243);

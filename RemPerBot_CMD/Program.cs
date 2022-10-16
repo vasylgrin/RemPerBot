@@ -10,7 +10,7 @@ var botClient = new TelegramBotClient("5268015233:AAFtYMakBaqz-SvLgrmN14IByvkLTP
 using var cts = new CancellationTokenSource();
 await botClient.DeleteWebhookAsync();
 
-string messageText = "123123";
+string? messageText = "123123";
 long chatId = 0;
 
 
@@ -24,11 +24,10 @@ TutorialController tutorialController = new();
 
 Dictionary<long, string> UserTutorialDictionary = new();
 
-reminderController.CheckReminders();
-periodController.CheckPeriodThread();
-periodController.StartMenstruationThread();
+reminderController.CheckBirthDate();
+periodController.SendMsgForStartPeriodAsync();
+periodController.StartMenstruationAsync();
 periodController.ChangeIsNotifyThread();
-botController.ClearDictionary();
 
 var receiverOptions = new ReceiverOptions
 {
@@ -57,12 +56,12 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
 {
     if (update.Type == UpdateType.CallbackQuery)
     {
-        chatId = update.CallbackQuery.Message.Chat.Id;
+        chatId = update!.CallbackQuery!.Message!.Chat.Id;
         messageText = update.CallbackQuery.Data;
 
-        if (messageText.Contains("tutorial"))
+        if (messageText!.Contains("tutorial"))
         {
-            objectControllerBase.SetDictionary(chatId, messageText, UserTutorialDictionary);
+            UserTutorialDictionary.SetDictionary(chatId, messageText);
             await isStartOrEndOfTutorial(chatId, messageText, messageText, update, cancellationToken);
             Console.WriteLine($"{chatId}: {messageText}");
         }
@@ -84,7 +83,7 @@ async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, Cancel
             return;
         }
 
-        await botController.CheckAnswerAsync(messageText, chatId, update, cts.Token);
+        botController.CheckAnswerAsync(messageText, chatId, update, cts.Token);
         Console.WriteLine($"{chatId}: {messageText}");
     }
 }

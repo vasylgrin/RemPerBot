@@ -1,7 +1,10 @@
 ﻿using MySuperUniversalBot_BL.Models;
 using RemBerBot_BL.Controller.Controller;
-using Telegram.Bot;
+using RemBerBot_BL.Controller.DataBase;
+using RemBerBot_BL.Controller.Interface;
+using RemBerBot_BL.Models;
 using Telegram.Bot.Types;
+using static RemBerBot_BL.Controller.Controller.ObjectControllerBase;
 
 namespace MySuperUniversalBot_BL.Controller
 {
@@ -9,19 +12,14 @@ namespace MySuperUniversalBot_BL.Controller
     {
         #region Variable
 
-        Dictionary<long, NavigationEnum> NavigationDictionary = new();       
-        Dictionary<long, AddReminderEnum> AddReminderDictionary = new();
-        Dictionary<long, AddPeriodEnum> AddPeriodDictionary = new();
-        Dictionary<long, AddNotifyTheUserEnum> AddNotifyTheUserDictionary = new();
-        
         Dictionary<long, string> InputTextDictionary = new();
         Dictionary<long, string> CurrentOperationDictionary = new();
         Dictionary<long, bool> IsStartAddedObjectDictionary = new();
 
-
         ReminderController reminderController = new();
         PeriodController periodController = new();
         NotifyTheUserController notifyTheUserController = new();
+
         ObjectControllerBase objectControllerBase = new();
 
         #endregion
@@ -32,303 +30,270 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="messageText">Data.</param>
         /// <param name="chatId">Chat id.</param>
         /// <param name="cancellationToken">Token.</param>
-        public async Task CheckAnswerAsync(string messageText, long chatId, Update update, CancellationToken cancellationToken)
+        public async void CheckAnswerAsync(string messageText, long chatId, Update update, CancellationToken cancellationToken)
         {
-            objectControllerBase.SetsTheInitialValue(chatId, InputTextDictionary, CurrentOperationDictionary, IsStartAddedObjectDictionary);
-        #region validations answer
+            await Task.Run(async () =>
+            {
+                InputTextDictionary.SetStartValueOfDictionaryForNewUser(chatId);
+                CurrentOperationDictionary.SetStartValueOfDictionaryForNewUser(chatId);
+                IsStartAddedObjectDictionary.SetStartValueOfDictionaryForNewUser(chatId);
 
-        start:
-            if (messageText == "/start")
-            {
-                //SetDictionary<int>(chatId, NavigationEnum.ReminderMenu, NavigationDictionary);
-                await PrintInline("Привіт, мене звати RemPer.", chatId, SetupInLine("Пройти туторіал", CallbackQueryCommands.tutorialPeriod.ToString()));
-                await PrintKeyboard("Обирай дію:", chatId, SetupKeyboard(ReminderCommands.Нагадування.ToString(), PeriodCommands.Період.ToString(), GeneralCommands.myId.ToString()), cancellationToken);
-            }
-            else if (messageText == GeneralCommands.Назад.ToString())
-            {
-                if (BackButton(chatId, out messageText, cancellationToken))
+                if (!DictionaryController.OperationDictionary.ContainsKey(chatId))
                 {
-                    goto start;
+                    DictionaryController.OperationDictionary.Add(chatId, OperationEnum.empty);
                 }
-            }
-            else if (messageText == ReminderCommands.Нагадування.ToString())
-            {
-                await PrintKeyboard("Обирай:", chatId, SetupKeyboard(ReminderCommands.Додати.ToString(), ReminderCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                objectControllerBase.SetDictionary(chatId, NavigationEnum.ReminderMenu, NavigationDictionary);
-            }
-            else if (messageText == ReminderCommands.Додати.ToString() || ReminderCommands.Додати.ToString() == CurrentOperationDictionary[chatId])
-            {
-                if (await AddObject(chatId, messageText, ReminderCommands.Додати.ToString(), ReminderCommands.Додати.ToString(), AddReminder, cancellationToken, update))
+                if (!DictionaryController.NavigationDictionary.ContainsKey(chatId))
                 {
-                    await reminderController.DisplayCurrentReminder(chatId, CallbackQueryCommands.saveReminder.ToString());
-                    await PrintKeyboard("Обирай:", chatId, SetupKeyboard(ReminderCommands.Додати.ToString(), ReminderCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                    InputTextDictionary.Add(chatId, "");
+                    DictionaryController.NavigationDictionary.Add(chatId, NavigationEnum.MainMenu);
                 }
-            }
-            else if (messageText == ReminderCommands.Переглянути.ToString())
-            {
-                objectControllerBase.Display<Reminder>(chatId, "У тебе немає нагадувань, час їх створити.", CallbackQueryCommands.deleteReminder, new DataBaseContextForReminder());
-            }
-            else if (messageText == PeriodCommands.Період.ToString())
-            {
-                await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Перiод.ToString(), NotifyTheUserCommands.Користувачі.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                objectControllerBase.SetDictionary(chatId, NavigationEnum.StartPeriodMenu, NavigationDictionary);
-            }
-            else if (messageText == PeriodCommands.Перiод.ToString())
-            {
-                await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                objectControllerBase.SetDictionary(chatId, AddPeriodEnum.empty, AddPeriodDictionary);
-                objectControllerBase.SetDictionary(chatId, NavigationEnum.PeriodMenu, NavigationDictionary);
-            }
-            else if (messageText == PeriodCommands.Створити.ToString() || PeriodCommands.Створити.ToString() == CurrentOperationDictionary[chatId])
-            {
-                if(await AddObject(chatId, messageText, PeriodCommands.Створити.ToString(), PeriodCommands.Створити.ToString(), AddPeriod, cancellationToken, update))
-                {
-                }
-            }
-            else if (messageText == PeriodCommands.Проглянути.ToString())
-            {
-                objectControllerBase.SetDictionary(chatId, AddPeriodEnum.empty, AddPeriodDictionary);
-                objectControllerBase.Display<Period>(chatId, "У тебе немає створеного циклу, вже самий час його створити.", CallbackQueryCommands.deletePeriod, new DataBaseContextForPeriod());
 
-            }
-            else if (messageText == PeriodCommands.Розпочались.ToString())
-            {
-                new PeriodController().Update(chatId);
-            }
-            else if (messageText == NotifyTheUserCommands.Користувачі.ToString())
-            {
-                await PrintKeyboard("Обирай:", chatId, SetupKeyboard(NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                objectControllerBase.SetDictionary(chatId, NavigationEnum.PeriodMenu, NavigationDictionary);
-            }
-            else if (messageText == NotifyTheUserCommands.Добавити.ToString() || NotifyTheUserCommands.Добавити.ToString() == CurrentOperationDictionary[chatId])
-            {
-                if(await AddObject(chatId, messageText, NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Добавити.ToString(), AddNotifyTheUser, cancellationToken, update))
-                {
-                    await notifyTheUserController.DisplayCurrentNotifyTheUser(chatId, CallbackQueryCommands.sendInviteNotifyTheUser.ToString());
-                    await PrintKeyboard("Обирай:", chatId, SetupKeyboard(NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                    InputTextDictionary.Add(chatId, "");
-                }
-            }
-            else if (messageText == NotifyTheUserCommands.Продивитись.ToString())
-            {
-                objectControllerBase.Display<NotifyTheUser>(chatId, "У тебе немає доданих користувачів, мені здається самий час їх добавити.", CallbackQueryCommands.deleteNotifyTheUser,new DataBaseContextForPeriod());
-            }
-            else if (messageText == GeneralCommands.myId.ToString())
-            {
-                await PrintMessage($"Id твого чату:", chatId);
-                await PrintMessage($"{chatId}", chatId);
-            }
-            else
-            {
-                await PrintMessage("Невідома команда...", chatId);
-            }
+                #region validations answer
 
-            #endregion 
+
+                if (messageText == GeneralCommands.Назад.ToString())
+                {
+                    bool isOk = await Task.Run(() =>
+                    {
+                        return BackButton(chatId, out messageText, cancellationToken);
+                    });
+
+                    if (isOk)
+                    {
+                        return;
+                    }
+                }
+                if (messageText == "/start")
+                {
+                    PrintInline("Привіт, мене звати RemPer.", chatId, SetupInLine("Пройти туторіал", CallbackQueryCommands.tutorialReminder.ToString()));
+                    PrintKeyboard("Обирай дію:", chatId, SetupKeyboard(GeneralCommands.Нагадування.ToString(), GeneralCommands.Період.ToString(), GeneralCommands.myId.ToString()), cancellationToken);
+                }
+                else if (messageText == GeneralCommands.Нагадування.ToString())
+                {
+                    PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Додати.ToString(), GeneralCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.MainMenu);
+                    DictionaryController.OperationDictionary.SetDictionary(chatId, OperationEnum.empty);
+                }
+                else if (messageText == GeneralCommands.Додати.ToString() || GeneralCommands.Додати.ToString() == CurrentOperationDictionary[chatId])
+                {
+                    SetOperationDictionary(chatId, OperationEnum.addBirthDate);
+
+                    if (await AddObject(messageText, GeneralCommands.Додати.ToString(), chatId, cancellationToken, reminderController))
+                    {
+                        reminderController.PrintCurrentObject(chatId, CallbackQueryCommands.saveReminder.ToString());
+                        PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Додати.ToString(), GeneralCommands.Переглянути.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                        InputTextDictionary.SetDictionary(chatId, "");
+                    }
+                }
+                else if (messageText == GeneralCommands.Переглянути.ToString())
+                {
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.MainMenu);
+                    objectControllerBase.Display<BirthDate>(chatId, "У тебе немає нагадувань, час їх створити.", CallbackQueryCommands.deleteReminder);
+                }
+                else if (messageText == GeneralCommands.Період.ToString())
+                {
+                    PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Перiод.ToString(), GeneralCommands.Користувачі.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.MainMenu);
+                }
+                else if (messageText == GeneralCommands.Перiод.ToString())
+                {
+                    PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Створити.ToString(), GeneralCommands.Проглянути.ToString(), GeneralCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+
+                    DictionaryController.OperationDictionary.SetDictionary(chatId, OperationEnum.empty);
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.PeriodMenu);
+                }
+                else if (messageText == GeneralCommands.Створити.ToString() || GeneralCommands.Створити.ToString() == CurrentOperationDictionary[chatId])
+                {
+                    SetOperationDictionary(chatId, OperationEnum.addPeriod);
+
+                    if (!periodController.isExistPeriod(chatId, out int periodId))
+                    {
+                        if (await AddObject(messageText, GeneralCommands.Створити.ToString(), chatId, cancellationToken, periodController))
+                        {
+                            periodController.PrintCurrentObject(chatId, CallbackQueryCommands.savePeriod.ToString());
+                            PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Створити.ToString(), GeneralCommands.Проглянути.ToString(), GeneralCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                            InputTextDictionary.SetDictionary(chatId, "");
+                        }
+                    }
+                    else
+                    {
+                        CurrentOperationDictionary[chatId] = "";
+                        PrintInline("Цикл вже створений, якщо хочеш щось змінити то просто видали його.", chatId, SetupInLine(CallbackQueryCommands.Видалити.ToString(), $"{CallbackQueryCommands.deletePeriod} {periodId}"));
+                    }
+                }
+                else if (messageText == GeneralCommands.Проглянути.ToString())
+                {
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.PeriodMenu);
+                    objectControllerBase.Display<Period>(chatId, "У тебе немає створеного циклу, вже самий час його створити.", CallbackQueryCommands.deletePeriod);
+                }
+                else if (messageText == GeneralCommands.Розпочались.ToString())
+                {
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.PeriodMenu);
+                    new PeriodController().Update(chatId);
+                }
+                else if (messageText == GeneralCommands.Користувачі.ToString())
+                {
+                    PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Добавити.ToString(), GeneralCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+
+                    DictionaryController.OperationDictionary.SetDictionary(chatId, OperationEnum.empty);
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.PeriodMenu);
+                }
+                else if (messageText == GeneralCommands.Добавити.ToString() || GeneralCommands.Добавити.ToString() == CurrentOperationDictionary[chatId])
+                {
+                    SetOperationDictionary(chatId, OperationEnum.addNotifyTheUser);
+
+                    if (periodController.isExistPeriod(chatId, out int perId))
+                    {
+                        if (await AddObject(messageText, GeneralCommands.Добавити.ToString(), chatId, cancellationToken, notifyTheUserController))
+                        {
+                            notifyTheUserController.PrintCurrentObject(chatId, CallbackQueryCommands.sendInviteNotifyTheUser.ToString());
+                            PrintKeyboard("Обирай:", chatId, SetupKeyboard(GeneralCommands.Добавити.ToString(), GeneralCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
+                            InputTextDictionary.SetDictionary(chatId, "");
+                        }
+                    }
+                    else
+                    {
+                        PrintMessage("Твій цикл не знайдено, саме час його створити.", chatId);
+                        CurrentOperationDictionary[chatId] = "";
+                    }
+                }
+                else if (messageText == GeneralCommands.Продивитись.ToString())
+                {
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.addNotifyTheUser);
+                    objectControllerBase.Display<NotifyTheUser>(chatId, "У тебе немає доданих користувачів, здається, самий час їх добавити.", CallbackQueryCommands.deleteNotifyTheUser);
+                }
+                else if (messageText == GeneralCommands.myId.ToString())
+                {
+                    DictionaryController.NavigationDictionary.SetDictionary(chatId, NavigationEnum.addNotifyTheUser);
+                    PrintMessage($"Id твого чату:", chatId);
+                    PrintMessage($"{chatId}", chatId);
+                }
+                else
+                {
+                    PrintMessage("Невідома команда...", chatId);
+                }
+
+                #endregion
+
+            });
         }
 
-        /// <summary>
-        /// The method that returns to the previous page in the application.
-        /// </summary>
-        /// <param name="chatId">Chat Id.</param>
-        /// <param name="outputText">Text for restart app.</param>
-        /// <param name="cancellationToken">Token.</param>
-        /// <returns></returns>
         private bool BackButton(long chatId, out string outputText, CancellationToken cancellationToken)
         {
-            objectControllerBase.SetDictionary(chatId, AddReminderEnum.addReminder, AddReminderDictionary);
-            objectControllerBase.SetDictionary(chatId, AddPeriodEnum.addPeriod, AddPeriodDictionary);
-            objectControllerBase.SetDictionary(chatId, AddNotifyTheUserEnum.addNotifyTheUser, AddNotifyTheUserDictionary);
-            objectControllerBase.SetDictionary(chatId, "", CurrentOperationDictionary);
-
-            string outputTxt = "";
             bool isOk = false;
+            outputText = "";
+            CurrentOperationDictionary[chatId] = "";
+            DictionaryController.OperationDictionary[chatId] = OperationEnum.empty;
 
-            Task task = Task.Run(async () =>
+            switch (DictionaryController.NavigationDictionary[chatId])
             {
-                if (!NavigationDictionary.ContainsKey(chatId))
-                {
-                    await PrintMessage("Щось не так.\nНатискай /start.", chatId);
-                    return;
-                }
+                case NavigationEnum.MainMenu:
+                    PrintKeyboard("Обирай дію:", chatId, SetupKeyboard(GeneralCommands.Нагадування.ToString(), GeneralCommands.Період.ToString(), GeneralCommands.myId.ToString()), cancellationToken);
+                    isOk = true;
+                    break;
 
+                case NavigationEnum.addBirthDate:
+                    outputText = GeneralCommands.Нагадування.ToString();
+                    break;
 
-                switch (NavigationDictionary[chatId])
-                {
-                    case NavigationEnum.ReminderMenu:
-                        await PrintKeyboard("Обирай дію:", chatId, SetupKeyboard(ReminderCommands.Нагадування.ToString(), PeriodCommands.Період.ToString(), GeneralCommands.myId.ToString()), cancellationToken);
-                        break;
+                case NavigationEnum.PeriodMenu:
+                    outputText = GeneralCommands.Період.ToString();
+                    break;
 
-                    case NavigationEnum.AddReminder:
-                        outputTxt = ReminderCommands.Нагадування.ToString();
-                        isOk = true;
-                        break;
-                    
-                    case NavigationEnum.StartPeriodMenu:
-                        await PrintKeyboard("Обирай дію:", chatId, SetupKeyboard(ReminderCommands.Нагадування.ToString(), PeriodCommands.Період.ToString(), GeneralCommands.myId.ToString()), cancellationToken);
-                        break;
+                case NavigationEnum.addPeriod:
+                    outputText = GeneralCommands.Перiод.ToString();
+                    break;
 
-                    case NavigationEnum.PeriodMenu:
-                        outputTxt = PeriodCommands.Період.ToString();
-                        isOk = true;
-                        break;
+                case NavigationEnum.addNotifyTheUser:
+                    outputText = GeneralCommands.Користувачі.ToString();
+                    break;
+            }
 
-                    case NavigationEnum.addPeriod:
-                        outputTxt = PeriodCommands.Перiод.ToString();
-                        isOk = true;
-                        break;
-
-                    case NavigationEnum.addNotifyTheUser:
-                        await PrintKeyboard("Обирай:", chatId, SetupKeyboard(NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                        objectControllerBase.SetDictionary(chatId, NavigationEnum.PeriodMenu, NavigationDictionary);
-                        break;
-
-                    default:
-                        await PrintMessage("Щось не так.\nНатискай /start.", chatId);
-                        break;
-                }
-            });
-
-            task.Wait();
-
-            outputText = outputTxt;
             return isOk;
         }
-  
+
+        private void SetOperationDictionary(long chatId, OperationEnum operationEnum)
+        {
+            if (DictionaryController.OperationDictionary.ContainsKey(chatId))
+            {
+                if (DictionaryController.OperationDictionary[chatId] == OperationEnum.empty)
+                {
+                    DictionaryController.OperationDictionary[chatId] = operationEnum;
+                }
+            }
+            else if (!DictionaryController.OperationDictionary.ContainsKey(chatId))
+            {
+                DictionaryController.OperationDictionary.Add(chatId, operationEnum);
+            }
+        }
+
         /// <summary>
         /// Receives the callback and forwards it.
         /// </summary>
         /// <param name="callbackQuery">Callback</param>
-        public async void CallbackQueryAsync(CallbackQuery callbackQuery, Update update, CancellationToken token)
+        public void CallbackQueryAsync(CallbackQuery callbackQuery, Update update, CancellationToken token)
         {
-            long chatId = callbackQuery.Message.Chat.Id;
-            
-            if (callbackQuery.Data.Contains(CallbackQueryCommands.saveReminder.ToString()))
+            long chatId = callbackQuery.Message!.Chat.Id;
+
+            if (callbackQuery.Data!.Contains(CallbackQueryCommands.saveReminder.ToString()))
             {
-                if(reminderController.Save(chatId, out int f))
-                    await PrintMessage("Нагадування збережено.", chatId);
+                if (reminderController.Save(chatId, out int f))
+                    PrintMessage("Нагадування збережено.", chatId);
                 else
-                    await PrintMessage("Нагадування не збережено.", chatId);
+                    PrintMessage("Нагадування не збережено.", chatId);
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.deleteReminder.ToString()))
             {
-                objectControllerBase.Delete<Reminder>(callbackQuery, new DataBaseContextForReminder(), "Нагадування");
+                objectControllerBase.Delete<BirthDate>(callbackQuery, new RemPerContext(), "Нагадування");
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.savePeriod.ToString()))
             {
-                if(periodController.Save(chatId, out int f))
-                    await PrintMessage($"Налаштування успішно збережено.", chatId);
+                if (periodController.Save(chatId, out int f))
+                    PrintMessage($"Налаштування успішно збережено.", chatId);
                 else
-                    await PrintMessage("Налаштування не збережено.", chatId);
+                    PrintMessage("Налаштування не збережено.", chatId);
 
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.deletePeriod.ToString()))
             {
-                objectControllerBase.Delete<Period>(callbackQuery, new DataBaseContextForPeriod(), "Цикл та користувачі");
+                objectControllerBase.Delete<Period>(callbackQuery, new RemPerContext(), "Цикл та користувачі");
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.sendInviteNotifyTheUser.ToString()))
             {
-                await notifyTheUserController.SendInvite(chatId, update, CallbackQueryCommands.confirmInvite.ToString());
+                notifyTheUserController.SendInvite(chatId, update, CallbackQueryCommands.confirmInvite.ToString());
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.confirmInvite.ToString()))
             {
-                if(notifyTheUserController.Save(chatId, out int f))
-                    await PrintMessage("Користувач успішно добавлений.", chatId);
+                if (notifyTheUserController.Save(chatId, out int f))
+                    PrintMessage("Користувач успішно добавлений.", chatId);
                 else
-                    await PrintMessage("Користувача не добавлено.", chatId);
+                    PrintMessage("Користувача не добавлено.", chatId);
 
             }
             else if (callbackQuery.Data.Contains(CallbackQueryCommands.deleteNotifyTheUser.ToString()))
             {
-                objectControllerBase.Delete<NotifyTheUser>(callbackQuery, new DataBaseContextForPeriod(), "Користувач");
+                objectControllerBase.Delete<NotifyTheUser>(callbackQuery, new RemPerContext(), "Користувач");
             }
         }
-        
-        #region AddObject
 
-        protected async Task<bool> AddObject(long chatId, string messageText, string replaceText, string buttonName, Func<long, CancellationToken, Update, Task<bool>> deleagate, CancellationToken cancellationToken, Update update)
+        private async Task<bool> AddObject(string messageText, string buttonName, long chatId, CancellationToken cancellationToken, IObjectControllerBase iObjectControllerBase)
         {
             bool isOk = false;
+
             if (IsStartAddedObjectDictionary[chatId])
             {
-                objectControllerBase.SetDictionary(chatId, AddReminderEnum.addReminder, AddReminderDictionary);
-                objectControllerBase.SetDictionary(chatId, AddPeriodEnum.addPeriod, AddPeriodDictionary);
-                objectControllerBase.SetDictionary(chatId, AddNotifyTheUserEnum.addNotifyTheUser, AddNotifyTheUserDictionary);
-                IsStartAddedObjectDictionary[chatId] = false;
-            }
-
-            if (InputTextDictionary.ContainsKey(chatId))
-                objectControllerBase.SetDictionary(chatId, messageText.Replace(replaceText, ""), InputTextDictionary);
-
-            if (AddReminderDictionary.ContainsKey(chatId)
-            && InputTextDictionary.ContainsKey(chatId))
-            {
-                if (await deleagate.Invoke(chatId, cancellationToken, update))
+                if (await iObjectControllerBase.Add(messageText, chatId, cancellationToken))
                 {
-                    objectControllerBase.SetDictionary(chatId, "", CurrentOperationDictionary);
-                    objectControllerBase.SetDictionary(chatId, true, IsStartAddedObjectDictionary);
+                    InputTextDictionary.SetDictionary(chatId, "");
+                    CurrentOperationDictionary.SetDictionary(chatId, "");
                     isOk = true;
                 }
                 else
                 {
-                    objectControllerBase.SetDictionary(chatId, buttonName, CurrentOperationDictionary);
-                    objectControllerBase.SetDictionary(chatId, "", InputTextDictionary);
+                    CurrentOperationDictionary.SetDictionary(chatId, buttonName);
                 }
             }
+
             return isOk;
-        }
-
-        protected async Task<bool> AddReminder(long chatId, CancellationToken cancellationToken, Update update)
-        {
-            if (reminderController.Add(InputTextDictionary[chatId], AddReminderDictionary[chatId], chatId, cancellationToken, out AddReminderDictionary, out NavigationDictionary))
-                return true;
-            else
-                return false;
-        }
-
-        protected async Task<bool> AddPeriod(long chatId, CancellationToken cancellationToken, Update update)
-        {
-            if (periodController.Add(InputTextDictionary[chatId], AddPeriodDictionary[chatId], chatId, cancellationToken, out AddPeriodDictionary, out NavigationDictionary, out bool isExistPeriodOut))
-            {
-                if (isExistPeriodOut)
-                {
-                    objectControllerBase.SetDictionary(chatId, "", CurrentOperationDictionary);
-                    return true;
-                }
-                else
-                {
-                    await periodController.DisplayCurrentPeriod(chatId, CallbackQueryCommands.savePeriod.ToString());
-                    await PrintKeyboard("Обирай:", chatId, SetupKeyboard(PeriodCommands.Створити.ToString(), PeriodCommands.Проглянути.ToString(), PeriodCommands.Розпочались.ToString(), GeneralCommands.Назад.ToString()), cancellationToken);
-                    objectControllerBase.SetDictionary(chatId, "", InputTextDictionary);
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        protected async Task<bool> AddNotifyTheUser(long chatId, CancellationToken cancellationToken, Update update)
-        {
-            if (notifyTheUserController.Add(InputTextDictionary[chatId], AddNotifyTheUserDictionary[chatId], update, chatId, cancellationToken,out AddNotifyTheUserDictionary,out NavigationDictionary)) 
-                return true;
-            else
-                return false;
-        }
-
-        #endregion
-
-        public void ClearDictionary()
-        {
-            Task.Run(() =>
-            {
-                while (true)
-                {
-                    reminderController.ClearDictionary();
-                    periodController.ClearDictionary();
-                    notifyTheUserController.ClearDictionary();
-                    Task.Delay(60000).Wait();
-                }
-            });
         }
     }
 }
-

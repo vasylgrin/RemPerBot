@@ -2,229 +2,126 @@
 using MySuperUniversalBot_BL.Controller.ControllerBase;
 using MySuperUniversalBot_BL.Models;
 using RemBerBot_BL.Controller.Controller;
+using RemBerBot_BL.Controller.DataBase;
+using RemBerBot_BL.Controller.Interface;
 using Telegram.Bot.Types;
+using static MySuperUniversalBot_BL.Controller.BotControllerBase;
 
 namespace MySuperUniversalBot_BL.Controller
 {
-    public class NotifyTheUserController : BotControllerBase
+    public class NotifyTheUserController : ObjectControllerBase, IObjectControllerBase
     {
         Dictionary<long, long> ChatIdAddedDictionary = new();
         Dictionary<long, string> UsernameAddedDictionary = new();
         Dictionary<long, int> ClearDictionaryUser = new();
-        ObjectControllerBase objectControllerBase = new ObjectControllerBase();
 
-        public bool Add(string inputText, AddNotifyTheUserEnum addNotifyTheUserEnum, Update update, long chatId, CancellationToken token, out Dictionary<long, AddNotifyTheUserEnum> AddNotifyTheUserDictionary, out Dictionary<long, NavigationEnum> NavigationDictionary)
-        {
-            bool isOK = false;
+        BotControllerBase botControllerBase = new();
 
-            AddNotifyTheUserDictionary = new Dictionary<long, AddNotifyTheUserEnum>();
-            NavigationDictionary = new Dictionary<long, NavigationEnum>();
-
-            if (CheckForSaveNotifyTheUser(chatId, inputText, addNotifyTheUserEnum, out AddNotifyTheUserEnum addNotifyTheUserEnumOut, out NavigationEnum navigationEnum, token))
-            {
-                isOK = true;
-            }
-
-            objectControllerBase.SetDictionary(chatId, addNotifyTheUserEnumOut, AddNotifyTheUserDictionary);
-            objectControllerBase.SetDictionary(chatId, navigationEnum, NavigationDictionary);
-            return isOK;
-        }
-
-        /// <summary>
-        /// Gets the input and stores the user.
-        /// </summary>
-        /// <param name="chatId">Chat Id.</param>
-        /// <param name="text">Data.</param>
-        /// <param name="outputText">Output Data.</param>
-        /// <param name="navigation">Navigation bitton.</param>
-        /// <param name="token">Token.</param>
-        private bool CheckForSaveNotifyTheUser(long chatId, string text, AddNotifyTheUserEnum addNotifyTheUserEnum,out AddNotifyTheUserEnum addNotifyTheUserEnumOut, out NavigationEnum navigationEnum, CancellationToken token)
-        {
-            #region Variables
-
-            NavigationEnum navEnum = NavigationEnum.addNotifyTheUser;
-            AddNotifyTheUserEnum addNTUEnum = AddNotifyTheUserEnum.addNotifyTheUser;
-            bool isOK = false;
-
-            List<Period> periods = new();          
-            
-            #endregion
-
-            Task task = Task.Run(async () =>
-            {
-                if(addNotifyTheUserEnum == AddNotifyTheUserEnum.addNotifyTheUser)
-                {
-                    if(!isExistPeriod(chatId, out periods))
-                    {
-                        await PrintMessage("Твій цикл не знайдено, саме час його створити.", chatId);
-                        return;
-                    }
-                    await PrintKeyboard("Введи чат Id користувача якого хочеш добавити\nПриклад: 000000001", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
-                    addNTUEnum = AddNotifyTheUserEnum.addNotifyTheUserChatId;
-                    return;
-                }
-                else if (addNotifyTheUserEnum == AddNotifyTheUserEnum.addNotifyTheUserChatId)
-                {
-                    addNTUEnum = AddNotifyTheUserEnum.addNotifyTheUserChatId;
-                    
-                    text = text.Trim().Replace(AddNotifyTheUserEnum.addNotifyTheUserChatId.ToString(), "");
-                    
-                    if(long.TryParse(text, out long chatIdAdded))
-                    {
-                        if (text.Length >= 6 && text.Length <= 10)
-                        {
-                            if (isExistUser(chatIdAdded))
-                            {
-                                objectControllerBase.SetDictionary(chatId, chatIdAdded, ChatIdAddedDictionary);
-
-                                addNTUEnum = AddNotifyTheUserEnum.addNotifyTheUserName;
-                                await PrintMessage("Введи Ім'я користувача." +
-                                    "\nНаприклад: Котик\nP.S Це ім'я будеш бачити тільки ти.", chatId);
-                            }
-                            else
-                                await PrintMessage("Ви вже добавили цього користувача.", chatId);
-                        }
-                        else
-                        {
-                            await PrintMessage("Id складається 3 9 цифр, спробуй ще раз.", chatId);
-                        }
-                    }
-                    else
-                    {
-                        await PrintMessage("Id має містити лише цифри, спробуй ще раз.", chatId);
-                    }
-                }
-                else if (addNotifyTheUserEnum == AddNotifyTheUserEnum.addNotifyTheUserName)
-                {
-                    addNTUEnum = AddNotifyTheUserEnum.addNotifyTheUserName;
-                    
-                    text = text.Trim().Replace(AddNotifyTheUserEnum.addNotifyTheUserName.ToString(), "");
-                    
-                    if (string.IsNullOrWhiteSpace(text))
-                    {
-                        await PrintMessage("Ім'я не може бути пустим.", chatId);
-                    }
-
-                    objectControllerBase.SetDictionary(chatId, text, UsernameAddedDictionary);
-
-                    //await PrintKeyboard("Обирай:", chatId, SetupKeyboard(NotifyTheUserCommands.Добавити.ToString(), NotifyTheUserCommands.Продивитись.ToString(), GeneralCommands.myId.ToString(), GeneralCommands.Назад.ToString()), token);
-                    navEnum = NavigationEnum.PeriodMenu;
-                    isOK = true;
-                }
-            });
-            
-            task.Wait();
-            
-            addNotifyTheUserEnumOut = addNTUEnum;
-            navigationEnum = navEnum;
-            return isOK;
-        }
-
-        public async Task DisplayCurrentNotifyTheUser(long chatId, string callbackName) => await PrintInline($"Дані користувача:\nChat Id:{ChatIdAddedDictionary[chatId]}\nІм'я: {UsernameAddedDictionary[chatId]}", chatId, SetupInLine(CallbackQueryCommands.Запросити.ToString(), callbackName));
-
-        /// <summary>
-        /// Checks for null and saves the user.
-        /// </summary>
-        /// <param name="chatId">Chat id.</param>
-        /// <param name="chatIdAdded">Chat ID of the user we are adding.</param>
-        /// <param name="name">Username.</param>
-        /// <returns></returns>
-        public bool Save(long chatId, out int notifyTheUserId, long chatIdAddedDictionaryValue = 0, string usernameAddedDictionaryValue = default)
+        public async Task<bool> Add(string inputText, long chatId, CancellationToken cancellationToken)
         {
             bool isOk = false;
-            int ntu = 0;
-            
-            long chatIdAdded = chatId;
 
-            chatId = ChatIdAddedDictionary.FirstOrDefault(x => x.Value == chatId).Key;
-
-            if (chatIdAddedDictionaryValue == 0 && string.IsNullOrWhiteSpace(usernameAddedDictionaryValue))
+            await Task.Run(() =>
             {
-                ChatIdAddedDictionary.TryGetValue(chatId, out chatIdAddedDictionaryValue);
-                UsernameAddedDictionary.TryGetValue(chatId, out usernameAddedDictionaryValue);
-            }
-
-            if (isExistPeriod(chatId, out List<Period> period))
-            {
-                if (chatIdAddedDictionaryValue != 0 && !string.IsNullOrWhiteSpace(usernameAddedDictionaryValue))
+                OperationEnum operationEnum = DictionaryController.OperationDictionary[chatId];
+                if (operationEnum == OperationEnum.addNotifyTheUser)
                 {
-                    if (new DataBaseControllerBase<NotifyTheUser>(new DataBaseContextForPeriod()).Save(new NotifyTheUser(chatId, chatIdAddedDictionaryValue, usernameAddedDictionaryValue, period.First().Id)))
-                    {
-                        ntu = new DataBaseControllerBase<NotifyTheUser>(new DataBaseContextForPeriod()).Load().Where(ntu => ntu.ChatId == chatId).Last().Id;
+                    botControllerBase.PrintKeyboard("Введи чат Id користувача якого хочеш добавити\nПриклад: 000000001", chatId, botControllerBase.SetupKeyboard(GeneralCommands.Назад.ToString()), cancellationToken);
+                    ClearDictionaryUser.SetDictionary(chatId, 5);
 
-                        ChatIdAddedDictionary.Remove(chatId);
-                        UsernameAddedDictionary.Remove(chatId);
-                        isOk = true;
-                    }
+                    DictionaryController.NavigationDictionary[chatId] = NavigationEnum.addNotifyTheUser;
+                    DictionaryController.OperationDictionary[chatId] = OperationEnum.addNotifyTheUserChatId;
                 }
-            }
+                else if (operationEnum == OperationEnum.addNotifyTheUserChatId)
+                {
+                    if (long.TryParse(inputText, out long chatIdAdded))
+                    {
+                        if (inputText.Length >= 6 && inputText.Length <= 10)
+                        {
+                            if (!isExistUser(chatIdAdded))
+                            {
+                                ChatIdAddedDictionary.SetDictionary(chatId, chatIdAdded);
+                                botControllerBase.PrintMessage("Введи Ім'я користувача. \nНаприклад: Котик\nP.S Це ім'я будеш бачити тільки ти.", chatId);
 
-            notifyTheUserId = ntu;
+                                DictionaryController.OperationDictionary[chatId] = OperationEnum.addNotifyTheUserName;
+                            }
+                            else
+                                botControllerBase.PrintMessage("Ви вже добавили цього користувача.", chatId);
+                        }
+                        else
+                            botControllerBase.PrintMessage("Id складається 3 9 цифр, спробуй ще раз.", chatId);
+                    }
+                    else
+                        botControllerBase.PrintMessage("Id має містити лише цифри, спробуй ще раз.", chatId);
+                }
+                else if (operationEnum == OperationEnum.addNotifyTheUserName)
+                {
+                    if (string.IsNullOrWhiteSpace(inputText))
+                        botControllerBase.PrintMessage("Ім'я не може бути пустим.", chatId);
+
+                    UsernameAddedDictionary.SetDictionary(chatId, inputText);
+
+                    DictionaryController.NavigationDictionary[chatId] = NavigationEnum.PeriodMenu;
+                    isOk = true;
+                }
+
+            });
+
             return isOk;
         }
 
-        /// <summary>
-        /// Checks whether a period exists, if it exists, we get it in the list.
-        /// </summary>
-        /// <param name="chatId"></param>
-        /// <returns></returns>
-        private bool isExistPeriod(long chatId, out List<Period> periods)
+        public bool Save(long chatId, out int objectId)
         {
-            periods = new DataBaseControllerBase<Period>(new DataBaseContextForPeriod()).Load().Where(p => p.ChatId == chatId).ToList();
-            
-            if(periods.Count == 0)
-                return false;
-            else
+            objectId = 0;
+
+            if (ChatIdAddedDictionary.ContainsKey(chatId)
+                && UsernameAddedDictionary.ContainsKey(chatId))
+            {
+                var id = new DataBaseControllerBase<Period>(new RemPerContext()).Load().Where(period => period.ChatId == chatId).First().Id;
+                new DataBaseControllerBase<NotifyTheUser>(new RemPerContext()).Save(new NotifyTheUser(chatId, ChatIdAddedDictionary[chatId], UsernameAddedDictionary[chatId], id));
+
+                ChatIdAddedDictionary.Remove(chatId);
+                UsernameAddedDictionary.Remove(chatId);
+                ClearDictionaryUser.Remove(chatId);
                 return true;
+            }
+            return false;
+        }
+
+        public void PrintCurrentObject(long chatId, string callbackName)
+        {
+            botControllerBase.PrintInline($"Дані користувача:\nChat Id:{ChatIdAddedDictionary[chatId]}\nІм'я: {UsernameAddedDictionary[chatId]}", chatId, botControllerBase.SetupInLine(CallbackQueryCommands.Запросити.ToString(), callbackName));
         }
 
         private bool isExistUser(long chatId)
         {
-            bool isOK = true;
+            bool isOK = false;
             List<Period> Periods = new();
-            
-            using (DataBaseContextForPeriod db = new())
+
+            using (RemPerContext db = new())
             {
                 Periods = db.Periods.Include(n => n.NotifyTheUser).ToList();
             }
 
             Periods.Where(p => p.ChatId == chatId).ToList().ForEach(p =>
             {
-                p.NotifyTheUser.Where(n => n.ChatIdAdded == chatId).ToList().ForEach(async p =>
+                p.NotifyTheUser.Where(n => n.ChatIdAdded == chatId).ToList().ForEach(p =>
                 {
-                    isOK = false;
+                    isOK = true;
                 });
             });
 
             return isOK;
         }
 
-        public async Task SendInvite(long chatId, Update update, string CallbackTextSendInvite)
+        public void SendInvite(long chatId, Update update, string CallbackTextSendInvite)
         {
             ChatIdAddedDictionary.TryGetValue(chatId, out long temp);
             ChatIdAddedDictionary.TryGetValue(chatId, out long chatIdAdded);
             if (temp != 0)
             {
-                await PrintInline($"Запрошення на приймання повідомлень від користувача {update?.CallbackQuery?.Message?.Chat.Username}", chatIdAdded, SetupInLine(CallbackQueryCommands.Підтвердити.ToString(), CallbackTextSendInvite));
+                botControllerBase.PrintInline($"Запрошення на приймання повідомлень від користувача {update?.CallbackQuery?.Message?.Chat.Username}", chatIdAdded, botControllerBase.SetupInLine(CallbackQueryCommands.Підтвердити.ToString(), CallbackTextSendInvite));
             }
         }
-
-        public void ClearDictionary()
-        {
-            foreach (var item in ClearDictionaryUser)
-            {
-                if (item.Value >= 5 && item.Value != 0)
-                {
-                    ClearDictionaryUser[item.Key] = item.Value - 1;
-                }
-                else if (item.Value == 0)
-                {
-                    ChatIdAddedDictionary.Remove(item.Key);
-                    UsernameAddedDictionary.Remove(item.Key);
-                    ClearDictionaryUser.Remove(item.Key);
-                }
-            }
-        }
-
     }
 }

@@ -1,11 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using RemBerBot_BL.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading.Tasks;
+using RemBerBot_BL.Controller.DataBase;
 
 namespace MySuperUniversalBot_BL.Controller.ControllerBase
 {
@@ -20,12 +14,10 @@ namespace MySuperUniversalBot_BL.Controller.ControllerBase
             _dbSet = context.Set<TEntity>();
         }
 
-        public bool Save(TEntity entity)
+        public void Save(TEntity entity)
         {
             _dbSet.Add(entity);
             _context.SaveChanges();
-
-            return CheckForSaveDB(entity);
         }
 
         public List<TEntity> Load()
@@ -33,30 +25,16 @@ namespace MySuperUniversalBot_BL.Controller.ControllerBase
             return _dbSet.AsNoTracking().ToList();
         }
 
-        public bool Remove(TEntity entity)
+        public void Remove(TEntity entity)
         {
             _dbSet.Remove(entity);
             _context.SaveChanges();
-
-            return CheckForSaveDB(entity);
         }
 
-        public bool Update(TEntity entity)
+        public void Update(TEntity entity)
         {
             _dbSet.Update(entity);
             _context.SaveChanges();
-
-            return CheckForSaveDB(entity);
-        }
-
-        private bool CheckForSaveDB(TEntity entity)
-        {
-            List<TEntity> Entityes = _dbSet.Where(x => x == entity).ToList();
-
-            if (Entityes != null || Entityes.Count != 0)
-                return true;
-            else
-                return false;
         }
     }
 }

@@ -1,187 +1,122 @@
 ﻿using MySuperUniversalBot_BL.Controller.ControllerBase;
-using MySuperUniversalBot_BL.Models;
 using RemBerBot_BL.Controller.Controller;
+using RemBerBot_BL.Controller.DataBase;
+using RemBerBot_BL.Controller.Interface;
+using RemBerBot_BL.Models;
+using static MySuperUniversalBot_BL.Controller.BotControllerBase;
 
 namespace MySuperUniversalBot_BL.Controller
 {
-    public class ReminderController : BotControllerBase
+    public class ReminderController : ObjectControllerBase, IObjectControllerBase
     {
         #region Variable
 
-        Dictionary<long, string> TopicDictionary = new();
-        Dictionary<long, DateTime> DateTimeDictionary = new();
+        Dictionary<long, string> NameBirthdayDictionary = new();
+        Dictionary<long, DateTime> BirthDateDictionary = new();
         Dictionary<long, int> ClearDictionaryUser = new();
-        ObjectControllerBase objectControllerBase = new();
+
+        BotControllerBase botControllerBase = new();
 
         #endregion
 
-        public bool Add(string inputText, AddReminderEnum addReminderEnum, long chatId, CancellationToken token, out Dictionary<long, AddReminderEnum> AddReminderDictionary, out Dictionary<long, NavigationEnum> NavigationDictionary)
-        {
-            bool isOK = false;
-
-            AddReminderDictionary = new Dictionary<long, AddReminderEnum>();
-            NavigationDictionary = new Dictionary<long, NavigationEnum>();
-
-            if (CheckForSaveReminder(chatId, inputText, addReminderEnum, out AddReminderEnum addReminderEnumOut, out NavigationEnum navigationEnumOut, token))
-            {
-                isOK = true;
-            }
-
-            objectControllerBase.SetDictionary(chatId, addReminderEnumOut, AddReminderDictionary);
-            objectControllerBase.SetDictionary(chatId, navigationEnumOut, NavigationDictionary);
-            return isOK;
-        }
-
-        /// <summary>
-        /// Receives input data and passes it to SaveReminderAsync.
-        /// </summary>
-        /// <param name="chatId">Chat Id.</param>
-        /// <param name="text">Input data.</param>
-        /// <param name="outputText">Output data.</param>
-        private bool CheckForSaveReminder(long chatId, string text, AddReminderEnum addReminderEnum, out AddReminderEnum addReminderEnumOut, out NavigationEnum navigationEnum, CancellationToken token)
-        {
-            #region Varibales
-
-            AddReminderEnum addRemEnum = AddReminderEnum.addReminder;
-            NavigationEnum navEnum = NavigationEnum.AddReminder;
-            bool isOK = false;
-
-            #endregion
-
-            Task AddReminder = Task.Run(async () =>
-            {
-                if (addReminderEnum == AddReminderEnum.addReminder)
-                {
-                    await PrintKeyboard("Введи тему нагадування\nНаприклад: Сходити в магазин.", chatId, SetupKeyboard(GeneralCommands.Назад.ToString()), token);
-                    addRemEnum = AddReminderEnum.addReminderTopic;
-                }
-                else if (addReminderEnum == AddReminderEnum.addReminderTopic)
-                {
-                    if (!string.IsNullOrWhiteSpace(text))
-                    {
-                        await PrintMessage($"Введіть дату\nНаприклад: {DateTime.Now.AddMinutes(3)}", chatId);
-                        objectControllerBase.SetDictionary(chatId, text, TopicDictionary);
-                        ClearDictionaryUser.Add(chatId, 5);
-                        addRemEnum = AddReminderEnum.addReminderDateTime;
-                    }
-                    else
-                    {
-                        addRemEnum = AddReminderEnum.addReminderTopic;
-                        await PrintMessage("Щось не так з текстом...", chatId);
-                    }
-                }
-                else if (addReminderEnum == AddReminderEnum.addReminderDateTime)
-                {
-                    text = text.Replace(AddReminderEnum.addReminderDateTime.ToString(), "");
-
-                    if (DateTime.TryParse(text, out DateTime dateTime))
-                    {
-                        if (dateTime < DateTime.Now)
-                        {
-                            await PrintMessage($"Дата не може бути з минулого... Введіть коректні данні." +
-                                $"\nНаприклад: {DateTime.Now.AddMinutes(3)}.", chatId);
-                            addRemEnum = AddReminderEnum.addReminderDateTime;
-                            return;
-                        }
-                        else
-                        {
-                            objectControllerBase.SetDictionary(chatId, dateTime, DateTimeDictionary);
-                            addRemEnum = AddReminderEnum.empty;
-                            navEnum = NavigationEnum.ReminderMenu;
-                            isOK = true;
-                        }
-                    }
-                    else
-                    {
-                        addRemEnum = AddReminderEnum.addReminderDateTime;
-                        await PrintMessage($"Введіть правильний формат дати.\nНаприклад: {DateTime.Now.AddMinutes(3)}.", chatId);
-                    }
-                }
-            });
-
-            AddReminder.Wait();
-
-            addReminderEnumOut = addRemEnum;
-            navigationEnum = navEnum;
-            return isOK;
-        }
-
-        /// <summary>
-        /// Displays a reminder before saving it.
-        /// </summary>
-        /// <param name="chatId">Chat Id.</param>
-        /// <param name="callbackName">Сallback to save the reminder.</param>
-        /// <returns></returns>
-        public async Task DisplayCurrentReminder(long chatId, string callbackName) => await PrintInline($"Тема: {TopicDictionary[chatId]}\nДата нагадування: {DateTimeDictionary[chatId]}", chatId, SetupInLine(CallbackQueryCommands.Зберегти.ToString(), callbackName));
-
-        /// <summary>
-        /// We create a new reminder and save it to the database.
-        /// </summary>
-        /// <param name="chatId">Id chat.</param>
-        /// <param name="topic">Reminder topic.</param>
-        /// <param name="dateTime">Reminder date.</param>
-        public bool Save(long chatId, out int reminderId, string topicDictionaryValue = default, DateTime dateTimeDictionaryValue = default)
+        public async Task<bool> Add(string inputText, long chatId, CancellationToken cancellationToken)
         {
             bool isOk = false;
-            int remId = 0;
 
-            if (string.IsNullOrWhiteSpace(topicDictionaryValue) && dateTimeDictionaryValue == DateTime.MinValue)
+            await Task.Run(() =>
             {
-                TopicDictionary.TryGetValue(chatId, out topicDictionaryValue);
-                DateTimeDictionary.TryGetValue(chatId, out dateTimeDictionaryValue);
-            }
-
-            if (!string.IsNullOrWhiteSpace(topicDictionaryValue) && dateTimeDictionaryValue != DateTime.MinValue)
-            {
-                if (new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Save(new Reminder(chatId, topicDictionaryValue, dateTimeDictionaryValue)))
+                var operationEnum = DictionaryController.OperationDictionary[chatId];
+                if (operationEnum == OperationEnum.addBirthDate)
                 {
-                    remId = new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Load().Where(r => r.ChatId == chatId).Last().Id;
+                    botControllerBase.PrintKeyboard("Введи ім'я імениника.\nНаприклад: Папочка.", chatId, botControllerBase.SetupKeyboard(GeneralCommands.Назад.ToString()), cancellationToken);
 
-                    TopicDictionary.Remove(chatId);
-                    DateTimeDictionary.Remove(chatId);
-                    isOk = true;
+                    DictionaryController.OperationDictionary[chatId] = OperationEnum.addBirthDateOfUsername;
+                    DictionaryController.NavigationDictionary[chatId] = NavigationEnum.addBirthDate;
                 }
-            }
+                else if (operationEnum == OperationEnum.addBirthDateOfUsername)
+                {
+                    if (!string.IsNullOrWhiteSpace(inputText))
+                    {
+                        botControllerBase.PrintMessage($"Введи дату народження.\nНаприклад: 01.01.2001", chatId);
 
-            reminderId = remId;
+                        NameBirthdayDictionary.SetDictionary(chatId, inputText);
+                        ClearDictionaryUser.SetDictionary(chatId, 5);
+
+                        DictionaryController.OperationDictionary[chatId] = OperationEnum.addDayOfBirthDate;
+                    }
+                    else
+                        botControllerBase.PrintMessage("Текст не може бути пустим...", chatId);
+                }
+                else if (operationEnum == OperationEnum.addDayOfBirthDate)
+                {
+                    if (DateTime.TryParse(inputText, out DateTime dateTime))
+                    {
+                        BirthDateDictionary.SetDictionary(chatId, dateTime);
+
+                        DictionaryController.OperationDictionary[chatId] = OperationEnum.empty;
+                        DictionaryController.NavigationDictionary[chatId] = NavigationEnum.MainMenu;
+
+                        isOk = true;
+                    }
+                    else
+                        botControllerBase.PrintMessage($"Введи коректну дату народження.\nНаприклад: 01.01.2001.", chatId);
+                }
+            });
+            
             return isOk;
         }
 
-        /// <summary>
-        /// Gets valid reminders and displays them to the user, then deletes them.
-        /// </summary>
-        public void CheckReminders()
+        public bool Save(long chatId, out int objectId)
         {
-            Task.Run(async () =>
+            objectId = 0;
+
+            if (NameBirthdayDictionary.ContainsKey(chatId)
+                && BirthDateDictionary.ContainsKey(chatId))
+            {
+                new DataBaseControllerBase<BirthDate>(new RemPerContext()).Save(new BirthDate(chatId, NameBirthdayDictionary[chatId], BirthDateDictionary[chatId], CalculateAge(chatId)));
+                objectId = new DataBaseControllerBase<BirthDate>(new RemPerContext()).Load().Where(x => x.ChatId == chatId).First().Id;
+
+                NameBirthdayDictionary.Remove(chatId);
+                BirthDateDictionary.Remove(chatId);
+                ClearDictionaryUser.Remove(chatId);
+
+                return true;
+            }
+
+            return false;
+        }
+
+        public void PrintCurrentObject(long chatId, string callbackName) => botControllerBase.PrintInline($"Ім'я: {NameBirthdayDictionary[chatId]}\nВік: {CalculateAge(chatId)}\nДата народження: {BirthDateDictionary[chatId]}", chatId, botControllerBase.SetupInLine(CallbackQueryCommands.Зберегти.ToString(), callbackName));
+
+        private int CalculateAge(long chatId)
+        {
+            BirthDateDictionary.TryGetValue(chatId, out DateTime birthDay);
+
+            DateTime now = DateTime.Today;
+            int age = now.Year - birthDay.Year;
+            if (birthDay > now.AddYears(-age))
+                age--;
+            return age;
+        }
+
+        public async void CheckBirthDate()
+        {
+            await Task.Run(async () =>
             {
                 while (true)
                 {
-                    new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Load().Where(rem => rem.DateTime <= DateTime.Now).ToList().ForEach(async rem =>
+                    new DataBaseControllerBase<BirthDate>(new RemPerContext()).Load()
+                    .Where(birthDay => birthDay.DateOfBirthday == DateTime.Today)
+                    .ToList()
+                    .ForEach(birthDay =>
                     {
-                        await PrintMessage($"Ваше нагадування: \nТема:{rem.Topic}", rem.ChatId);
-                        new DataBaseControllerBase<Reminder>(new DataBaseContextForReminder()).Remove(rem);
+                        botControllerBase.PrintMessage($"Сьогодні день народження в {birthDay.Name}", birthDay.ChatId);
+                        new DataBaseControllerBase<BirthDate>(new RemPerContext()).Remove(birthDay);
                     });
 
-                    Task.Delay(1000).Wait();
+                    await Task.Delay(86000000);
                 }
             });
-        }
-
-        public void ClearDictionary()
-        {
-            foreach (var item in ClearDictionaryUser)
-            {
-                if (item.Value <= 5 && item.Value != 0)
-                {
-                    ClearDictionaryUser[item.Key] = item.Value - 1;
-                }
-                else if (item.Value == 0)
-                {
-                    TopicDictionary.Remove(item.Key);
-                    DateTimeDictionary.Remove(item.Key);
-                    ClearDictionaryUser.Remove(item.Key);
-                }
-            }
         }
     }
 }

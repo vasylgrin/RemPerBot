@@ -1,8 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using MySuperUniversalBot_BL.Controller.ControllerBase;
-using RemBerBot_BL.Models;
-using Telegram.Bot;
-using Telegram.Bot.Types;
+﻿using Telegram.Bot;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace MySuperUniversalBot_BL.Controller
@@ -14,8 +10,6 @@ namespace MySuperUniversalBot_BL.Controller
         TelegramBotClient botClient = new("5268015233:AAFtYMakBaqz-SvLgrmN14IByvkLTP2-404");
         CancellationToken cancellationToken;
 
-        
-
         #endregion
 
         #region Enum Commands
@@ -23,12 +17,23 @@ namespace MySuperUniversalBot_BL.Controller
         /// <summary>
         /// General enumeration.
         /// </summary>
-        protected enum GeneralCommands
+        public enum GeneralCommands
         {
+            Нагадування,
+            Додати,
+            Переглянути,
+            Період,
+            Перiод,
+            Створити,
+            Проглянути,
+            Розпочались,
+            Продивитись,
+            Добавити,
+            Користувачі,
             myId,
             Назад,
         }
-
+        
         /// <summary>
         /// Enumeration for callbacks.
         /// </summary>
@@ -50,86 +55,6 @@ namespace MySuperUniversalBot_BL.Controller
             tutorialNotifyTheUser,
         }
 
-        /// <summary>
-        /// Enumeration for ReminderCommands.
-        /// </summary>
-        protected enum ReminderCommands
-        {
-            Нагадування,
-            Додати,
-            Переглянути,
-        }
-
-        /// <summary>
-        /// Enumeration for PeriodCommands.
-        /// </summary>
-        protected enum PeriodCommands
-        {
-            Період,
-            Перiод,
-            Створити,
-            Проглянути,
-            Розпочались,
-        }
-
-        /// <summary>
-        /// Enumeration for NotifyTheUserCommands.
-        /// </summary>
-        protected enum NotifyTheUserCommands
-        {
-            Продивитись,
-            Добавити,
-            Користувачі,
-        }
-
-        /// <summary>
-        /// Enumeration for app navigation.
-        /// </summary>
-        public enum NavigationEnum
-        {
-            ReminderMenu = 1,
-            AddReminder,
-            StartPeriodMenu,
-            PeriodMenu,
-            addPeriod,
-            addNotifyTheUser,
-        }
-
-        /// <summary>
-        /// Enumeration to add a reminder.
-        /// </summary>
-        public enum AddReminderEnum
-        {
-            empty,
-            addReminder,
-            addReminderTopic,
-            addReminderDateTime
-        }
-
-        /// <summary>
-        /// Enumeration to add a period.
-        /// </summary>
-        public enum AddPeriodEnum
-        {
-            empty,
-            addPeriod,
-            addPeriodCycle,
-            addPeriodMenstruation,
-            addPeriodDateOfLastMenstruationMenstruation
-        }
-
-        /// <summary>
-        /// Enumeration to add a notifyTheUser.
-        /// </summary>
-        public enum AddNotifyTheUserEnum
-        {
-            empty,
-            addNotifyTheUser,
-            addNotifyTheUserChatId,
-            addNotifyTheUserName
-        }
-
-
         #endregion
 
         /// <summary>
@@ -139,10 +64,10 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="chatId">Chat id.</param>
         /// <param name="replyKeyboardMarkup">Keyboard for output.</param>
         /// <param name="cancellationToken">Token.</param>
-        public async Task PrintKeyboard(string messageText, long? chatId, ReplyKeyboardMarkup replyKeyboardMarkup, CancellationToken cancellationToken)
+        public async void PrintKeyboard(string messageText, long? chatId, ReplyKeyboardMarkup replyKeyboardMarkup, CancellationToken cancellationToken)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
-            Task.Delay(500).Wait();
+            await Task.Delay(500);
 
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
@@ -158,10 +83,10 @@ namespace MySuperUniversalBot_BL.Controller
         /// <param name="chatId">Id чату.</param>
         /// <param name="inlineKeyboardMarkup">Вид inline кнопок.</param>
         /// <param name="cancellationToken"></param>
-        public async Task PrintInline(string messageText, long? chatId, InlineKeyboardMarkup inlineKeyboardMarkup)
+        public async void PrintInline(string messageText, long? chatId, InlineKeyboardMarkup inlineKeyboardMarkup)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
-            Task.Delay(500).Wait();
+            await Task.Delay(500);
 
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
@@ -195,10 +120,10 @@ namespace MySuperUniversalBot_BL.Controller
         /// </summary>
         /// <param name="messageText">Message.</param>
         /// <param name="chatId">Id chat/</param>
-        public async Task PrintMessage(string messageText, long chatId)
+        public async void PrintMessage(string messageText, long chatId)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing);
-            Task.Delay(500).Wait();
+            await Task.Delay(500);
 
             await botClient.SendTextMessageAsync(
                 chatId: chatId,
@@ -206,19 +131,18 @@ namespace MySuperUniversalBot_BL.Controller
                 cancellationToken: cancellationToken);
         }
 
-
         /// <summary>
         /// Displays a message to the user.
         /// </summary>
         /// <param name="messageText">Message.</param>
         /// <param name="chatId">Id chat/</param>
         /// <param name="token">Token.</param>
-        public async Task PrintMessage(string messageText, long chatId, int typing)
+        public async void PrintMessage(string messageText, long chatId, int typing)
         {
             await botClient.SendChatActionAsync(chatId, Telegram.Bot.Types.Enums.ChatAction.Typing, cancellationToken);
-            Task.Delay(typing).Wait();
+            await Task.Delay(typing);
 
-            Message sentMessage = await botClient.SendTextMessageAsync(
+            await botClient.SendTextMessageAsync(
                 chatId: chatId,
                 text: messageText,
                 cancellationToken: cancellationToken);

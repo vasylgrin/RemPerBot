@@ -95,7 +95,6 @@ namespace MySuperUniversalBot_BL.Models
 
         public Period()
         {
-
         }
 
         public override string PrintData()
